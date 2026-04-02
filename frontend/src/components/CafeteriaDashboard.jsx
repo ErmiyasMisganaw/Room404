@@ -108,14 +108,14 @@ function useMenu() {
 
 function ToastContainer({ toasts, onDismiss }) {
   return (
-    <div className="fixed right-4 top-4 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2">
+    <div className="fixed right-4 top-20 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2">
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`rounded-lg border px-4 py-3 text-sm shadow-lg ${
+          className={`rounded-xl border px-4 py-3 text-sm shadow-lg ${
             toast.type === 'success'
-              ? 'border-green-200 bg-green-50 text-green-800'
-              : 'border-red-200 bg-red-50 text-red-800'
+              ? 'border-green-200 bg-green-50 text-green-700'
+              : 'border-orange-200 bg-orange-50 text-orange-700'
           }`}
         >
           <div className="flex items-center justify-between gap-3">
@@ -123,7 +123,7 @@ function ToastContainer({ toasts, onDismiss }) {
             <button
               type="button"
               onClick={() => onDismiss(toast.id)}
-              className="text-xs font-semibold opacity-75 transition hover:opacity-100"
+              className="text-xs font-semibold text-gray-600 transition hover:text-gray-900"
             >
               Dismiss
             </button>
@@ -136,11 +136,11 @@ function ToastContainer({ toasts, onDismiss }) {
 
 function Navbar({ user, stats, onLogout }) {
   return (
-    <header className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <header className="fixed inset-x-0 top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Cafeteria Dashboard</h1>
-          <p className="text-sm text-slate-600">
+          <h1 className="text-xl font-bold text-gray-900">Cafeteria Dashboard</h1>
+          <p className="text-sm text-gray-600">
             {user.name} • {user.role}
           </p>
         </div>
@@ -153,7 +153,7 @@ function Navbar({ user, stats, onLogout }) {
         <button
           type="button"
           onClick={onLogout}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-500"
         >
           Logout
         </button>
@@ -164,24 +164,24 @@ function Navbar({ user, stats, onLogout }) {
 
 function StatCard({ label, value }) {
   return (
-    <div className="rounded-md bg-slate-100 px-3 py-2 text-center">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="text-lg font-bold text-slate-900">{value}</p>
+    <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-center shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="text-lg font-bold text-gray-900">{value}</p>
     </div>
   );
 }
 
 function StatusBadge({ status }) {
   const statusClass = {
-    Pending: 'border-red-200 bg-red-100 text-red-800',
-    Rejected: 'border-yellow-200 bg-yellow-100 text-yellow-800',
-    Approved: 'border-green-200 bg-green-100 text-green-800',
+    Pending: 'border-orange-200 bg-orange-100 text-orange-700',
+    Rejected: 'border-yellow-200 bg-yellow-100 text-yellow-700',
+    Approved: 'border-green-200 bg-green-100 text-green-700',
   };
 
   return (
     <span
       className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
-        statusClass[status] || 'border-slate-200 bg-slate-100 text-slate-700'
+        statusClass[status] || 'border-gray-200 bg-gray-100 text-gray-700'
       }`}
     >
       {status}
@@ -194,19 +194,21 @@ function OrderCard({ order, selected, onSelect, onApprove, onReject, loadingOrde
 
   return (
     <article
-      className={`rounded-lg border p-4 shadow-sm transition ${
-        selected ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'
+      className={`rounded-xl border p-4 shadow-sm transition ${
+        selected
+          ? 'border-blue-300 bg-blue-50 shadow-md'
+          : 'border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">Room #{order.roomNumber}</p>
-          <p className="text-base font-semibold text-slate-900">{order.customerName}</p>
+          <p className="text-xs uppercase tracking-wide text-gray-500">Room #{order.roomNumber}</p>
+          <p className="text-base font-semibold text-gray-900">{order.customerName}</p>
         </div>
         <StatusBadge status={order.status} />
       </div>
 
-      <div className="mt-3 space-y-1 text-sm text-slate-700">
+      <div className="mt-3 space-y-1 text-sm text-gray-700">
         <p>
           <span className="font-semibold">Items:</span>{' '}
           {order.items.map((item) => `${item.name} x${item.quantity}`).join(', ')}
@@ -221,7 +223,7 @@ function OrderCard({ order, selected, onSelect, onApprove, onReject, loadingOrde
         <button
           type="button"
           onClick={() => onSelect(order)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
         >
           {selected ? 'Selected' : 'Details'}
         </button>
@@ -229,18 +231,18 @@ function OrderCard({ order, selected, onSelect, onApprove, onReject, loadingOrde
           type="button"
           onClick={() => onApprove(order)}
           disabled={order.status === 'Approved' || isLoading}
-          className="flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center justify-center gap-2 rounded-lg bg-green-500 px-3 py-2.5 text-sm font-semibold text-white shadow-lg shadow-green-100 transition hover:-translate-y-0.5 hover:bg-green-400 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
         >
-          {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+          {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-green-200" />}
           Approve
         </button>
         <button
           type="button"
           onClick={() => onReject(order)}
           disabled={order.status === 'Rejected' || isLoading}
-          className="flex items-center justify-center gap-2 rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center justify-center gap-2 rounded-lg bg-orange-500 px-3 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-100 transition hover:-translate-y-0.5 hover:bg-orange-400 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
         >
-          {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+          {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-orange-200" />}
           Reject
         </button>
       </div>
@@ -251,9 +253,9 @@ function OrderCard({ order, selected, onSelect, onApprove, onReject, loadingOrde
 function MenuVerification({ order, menu }) {
   if (!order) {
     return (
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Menu Verification</h2>
-        <p className="mt-2 text-sm text-slate-600">Select an order to validate item availability.</p>
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg">
+        <h2 className="text-lg font-bold text-gray-900">Menu Verification</h2>
+        <p className="mt-2 text-sm text-gray-600">Select an order to validate item availability.</p>
       </section>
     );
   }
@@ -287,8 +289,8 @@ function MenuVerification({ order, menu }) {
   const hasWarnings = verification.some((entry) => !entry.ok);
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">Menu Verification</h2>
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg">
+      <h2 className="text-lg font-bold text-gray-900">Menu Verification</h2>
 
       <div className="mt-3 space-y-2">
         {verification.map((entry) => (
@@ -296,8 +298,8 @@ function MenuVerification({ order, menu }) {
             key={entry.itemName}
             className={`rounded-md border px-3 py-2 text-sm ${
               entry.ok
-                ? 'border-green-200 bg-green-50 text-green-800'
-                : 'border-red-200 bg-red-50 text-red-800'
+                ? 'border-green-200 bg-green-50 text-green-700'
+                : 'border-orange-200 bg-orange-50 text-orange-700'
             }`}
           >
             <p className="font-semibold">{entry.itemName}</p>
@@ -307,7 +309,7 @@ function MenuVerification({ order, menu }) {
       </div>
 
       {hasWarnings && (
-        <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-700">
           Warning: One or more items cannot be fulfilled exactly as requested.
         </p>
       )}
@@ -318,9 +320,9 @@ function MenuVerification({ order, menu }) {
 function OrderDetails({ order, onApprove, onReject, loadingOrderId }) {
   if (!order) {
     return (
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Order Details</h2>
-        <p className="mt-2 text-sm text-slate-600">Select an order from the queue to view details.</p>
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg">
+        <h2 className="text-lg font-bold text-gray-900">Order Details</h2>
+        <p className="mt-2 text-sm text-gray-600">Select an order from the queue to view details.</p>
       </section>
     );
   }
@@ -328,10 +330,10 @@ function OrderDetails({ order, onApprove, onReject, loadingOrderId }) {
   const isLoading = loadingOrderId === order.id;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">Order Details</h2>
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg">
+      <h2 className="text-xl font-bold text-gray-900">Order Details</h2>
 
-      <div className="mt-3 space-y-2 text-sm text-slate-700">
+      <div className="mt-3 space-y-2 text-sm text-gray-700">
         <p>
           <span className="font-semibold">Room Number:</span> #{order.roomNumber}
         </p>
@@ -346,9 +348,9 @@ function OrderDetails({ order, onApprove, onReject, loadingOrderId }) {
         </p>
       </div>
 
-      <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
-        <p className="text-sm font-semibold text-slate-800">Ordered Items</p>
-        <ul className="mt-2 space-y-1 text-sm text-slate-700">
+      <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
+        <p className="text-sm font-semibold text-gray-800">Ordered Items</p>
+        <ul className="mt-2 space-y-1 text-sm text-gray-700">
           {order.items.map((item) => (
             <li key={`${order.id}-${item.name}`}>{item.name} x{item.quantity}</li>
           ))}
@@ -360,18 +362,18 @@ function OrderDetails({ order, onApprove, onReject, loadingOrderId }) {
           type="button"
           onClick={() => onApprove(order)}
           disabled={order.status === 'Approved' || isLoading}
-          className="flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center justify-center gap-2 rounded-lg bg-green-500 px-3 py-2.5 text-sm font-semibold text-white shadow-lg shadow-green-100 transition hover:-translate-y-0.5 hover:bg-green-400 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
         >
-          {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+          {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-green-200" />}
           Approve Order
         </button>
         <button
           type="button"
           onClick={() => onReject(order)}
           disabled={order.status === 'Rejected' || isLoading}
-          className="flex items-center justify-center gap-2 rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center justify-center gap-2 rounded-lg bg-orange-500 px-3 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-100 transition hover:-translate-y-0.5 hover:bg-orange-400 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
         >
-          {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+          {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-orange-200" />}
           Reject Order
         </button>
       </div>
@@ -500,22 +502,22 @@ export default function CafeteriaDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-50 px-4 pb-6 pt-28 font-sans md:px-6">
       <Navbar user={user} stats={stats} onLogout={handleLogout} />
 
       {errorMessage && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
           {errorMessage}
         </div>
       )}
 
       <main className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">Orders Queue</h2>
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg">
+          <h2 className="mb-4 text-xl font-bold text-gray-900">Orders Queue</h2>
 
           <div className="space-y-3">
             {orders.length === 0 && (
-              <div className="rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
+              <div className="rounded-lg border border-dashed border-gray-300 px-3 py-5 text-center text-sm text-gray-500">
                 No customer orders in queue.
               </div>
             )}

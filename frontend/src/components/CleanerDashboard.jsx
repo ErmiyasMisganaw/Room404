@@ -177,14 +177,14 @@ function useTasks(cleanerName) {
 
 function ToastContainer({ toasts, onDismiss }) {
   return (
-    <div className="fixed right-4 top-4 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2">
+    <div className="fixed right-4 top-20 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2">
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`rounded-lg border px-4 py-3 text-sm shadow-lg ${
+          className={`rounded-xl border px-4 py-3 text-sm shadow-lg ${
             toast.type === 'success'
-              ? 'border-green-200 bg-green-50 text-green-800'
-              : 'border-red-200 bg-red-50 text-red-800'
+              ? 'border-green-200 bg-green-50 text-green-700'
+              : 'border-orange-200 bg-orange-50 text-orange-700'
           }`}
         >
           <div className="flex items-center justify-between gap-3">
@@ -192,7 +192,7 @@ function ToastContainer({ toasts, onDismiss }) {
             <button
               type="button"
               onClick={() => onDismiss(toast.id)}
-              className="text-xs font-semibold opacity-75 transition hover:opacity-100"
+              className="text-xs font-semibold text-gray-600 transition hover:text-gray-900"
             >
               Dismiss
             </button>
@@ -205,11 +205,11 @@ function ToastContainer({ toasts, onDismiss }) {
 
 function Navbar({ cleaner, stats, onLogout }) {
   return (
-    <header className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <header className="fixed inset-x-0 top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Cleaner Dashboard</h1>
-          <p className="text-sm text-slate-600">
+          <h1 className="text-xl font-bold text-gray-900">Cleaner Dashboard</h1>
+          <p className="text-sm text-gray-600">
             {cleaner.name} • {cleaner.role}
           </p>
         </div>
@@ -222,7 +222,7 @@ function Navbar({ cleaner, stats, onLogout }) {
         <button
           type="button"
           onClick={onLogout}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-500"
         >
           Logout
         </button>
@@ -233,18 +233,18 @@ function Navbar({ cleaner, stats, onLogout }) {
 
 function StatCard({ label, value }) {
   return (
-    <div className="rounded-md bg-slate-100 px-3 py-2 text-center">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="text-lg font-bold text-slate-900">{value}</p>
+    <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-center shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="text-lg font-bold text-gray-900">{value}</p>
     </div>
   );
 }
 
 function ProfileSection({ cleaner, activeTaskCount }) {
   return (
-    <section className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="mb-2 text-base font-semibold text-slate-900">Cleaner Profile</h2>
-      <div className="grid grid-cols-1 gap-2 text-sm text-slate-700 sm:grid-cols-3">
+    <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-lg">
+      <h2 className="mb-2 text-lg font-bold text-gray-900">Cleaner Profile</h2>
+      <div className="grid grid-cols-1 gap-2 text-sm text-gray-700 sm:grid-cols-3">
         <p>
           <span className="font-semibold">Name:</span> {cleaner.name}
         </p>
@@ -265,16 +265,16 @@ function CooldownTimer({ remainingSeconds, isCoolingDown }) {
   const seconds = String(remainingSeconds % 60).padStart(2, '0');
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-base font-semibold text-slate-900">Task Cooldown</h2>
+    <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-lg">
+      <h2 className="text-lg font-bold text-gray-900">Task Cooldown</h2>
       <p
         className={`mt-2 text-2xl font-bold ${
-          isCoolingDown ? 'text-amber-600' : 'text-emerald-600'
+          isCoolingDown ? 'text-orange-500' : 'text-green-500'
         }`}
       >
         {isCoolingDown ? `${minutes}:${seconds}` : 'Ready'}
       </p>
-      <p className="mt-1 text-sm text-slate-600">
+      <p className="mt-1 text-sm text-gray-600">
         {isCoolingDown
           ? 'Please wait until cooldown ends before taking or confirming new work.'
           : 'You can take or confirm tasks now.'}
@@ -285,15 +285,15 @@ function CooldownTimer({ remainingSeconds, isCoolingDown }) {
 
 function StatusBadge({ status }) {
   const statusClasses = {
-    Completed: 'border-green-200 bg-green-100 text-green-800',
-    'In Progress': 'border-yellow-200 bg-yellow-100 text-yellow-800',
-    Pending: 'border-red-200 bg-red-100 text-red-800',
+    Completed: 'border-green-200 bg-green-100 text-green-700',
+    'In Progress': 'border-yellow-200 bg-yellow-100 text-yellow-700',
+    Pending: 'border-orange-200 bg-orange-100 text-orange-700',
   };
 
   return (
     <span
       className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
-        statusClasses[status] || 'border-slate-200 bg-slate-100 text-slate-700'
+        statusClasses[status] || 'border-gray-200 bg-gray-100 text-gray-700'
       }`}
     >
       {status}
@@ -305,16 +305,16 @@ function TaskCard({ task, isConfirmDisabled, onConfirm, loadingTaskId }) {
   const isLoading = loadingTaskId === task.id;
 
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="rounded-xl border border-gray-200 bg-white p-4 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm text-slate-500">Room</p>
-          <p className="text-lg font-semibold text-slate-900">#{task.roomNumber}</p>
+          <p className="text-sm text-gray-500">Room</p>
+          <p className="text-lg font-semibold text-gray-900">#{task.roomNumber}</p>
         </div>
         <StatusBadge status={task.status} />
       </div>
 
-      <div className="mt-3 space-y-1 text-sm text-slate-700">
+      <div className="mt-3 space-y-1 text-sm text-gray-700">
         <p>
           <span className="font-semibold">ETA:</span> {task.etaMinutes} min
         </p>
@@ -328,9 +328,9 @@ function TaskCard({ task, isConfirmDisabled, onConfirm, loadingTaskId }) {
         type="button"
         disabled={isConfirmDisabled || task.status === 'Completed' || isLoading}
         onClick={() => onConfirm(task)}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
       >
-        {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+        {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-blue-200" />}
         {task.status === 'Completed' ? 'Task Completed' : 'Confirm Task'}
       </button>
     </article>
@@ -346,12 +346,12 @@ function AvailableRoomsList({
   loadingTaskId,
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="mb-4 text-lg font-semibold text-slate-900">Available Rooms Queue</h2>
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg">
+      <h2 className="mb-4 text-xl font-bold text-gray-900">Available Rooms Queue</h2>
 
       <div className="space-y-3">
         {rooms.length === 0 && (
-          <div className="rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
+          <div className="rounded-lg border border-dashed border-gray-300 px-3 py-5 text-center text-sm text-gray-500">
             No rooms waiting for cleaning.
           </div>
         )}
@@ -363,21 +363,21 @@ function AvailableRoomsList({
           return (
             <article
               key={room.id}
-              className={`rounded-lg border p-4 transition ${
+              className={`rounded-xl border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
                 isSelected
                   ? 'border-blue-300 bg-blue-50'
-                  : 'border-slate-200 bg-white hover:border-slate-300'
+                  : 'border-gray-200 bg-white hover:border-blue-200'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm text-slate-500">Room</p>
-                  <p className="text-lg font-semibold text-slate-900">#{room.roomNumber}</p>
+                  <p className="text-sm text-gray-500">Room</p>
+                  <p className="text-lg font-semibold text-gray-900">#{room.roomNumber}</p>
                 </div>
                 <StatusBadge status={room.status} />
               </div>
 
-              <div className="mt-3 space-y-1 text-sm text-slate-700">
+              <div className="mt-3 space-y-1 text-sm text-gray-700">
                 <p>
                   <span className="font-semibold">ETA:</span> {room.etaMinutes} min
                 </p>
@@ -391,7 +391,7 @@ function AvailableRoomsList({
                 <button
                   type="button"
                   onClick={() => onSelect(room.id)}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
                 >
                   {isSelected ? 'Selected' : 'Select'}
                 </button>
@@ -399,10 +399,10 @@ function AvailableRoomsList({
                   type="button"
                   disabled={disabled || isLoading}
                   onClick={() => onTakeTask(room.id)}
-                  className="flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex items-center justify-center gap-2 rounded-lg bg-green-500 px-3 py-2.5 text-sm font-semibold text-white shadow-lg shadow-green-100 transition hover:-translate-y-0.5 hover:bg-green-400 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
                 >
                   {isLoading && (
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-green-200" />
                   )}
                   Assign to Me
                 </button>
@@ -516,7 +516,7 @@ export default function CleanerDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-50 px-4 pb-6 pt-28 font-sans md:px-6">
       <Navbar cleaner={user} stats={stats} onLogout={handleLogout} />
 
       <ProfileSection
@@ -525,7 +525,7 @@ export default function CleanerDashboard() {
       />
 
       {errorMessage && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
           {errorMessage}
         </div>
       )}
@@ -543,11 +543,11 @@ export default function CleanerDashboard() {
         <section className="space-y-4">
           <CooldownTimer remainingSeconds={remainingSeconds} isCoolingDown={isCoolingDown} />
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold text-slate-900">Assigned Tasks</h2>
+          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg">
+            <h2 className="mb-4 text-xl font-bold text-gray-900">Assigned Tasks</h2>
             <div className="space-y-3">
               {assignedTasks.length === 0 && (
-                <div className="rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
+                <div className="rounded-lg border border-dashed border-gray-300 px-3 py-5 text-center text-sm text-gray-500">
                   No tasks assigned yet.
                 </div>
               )}

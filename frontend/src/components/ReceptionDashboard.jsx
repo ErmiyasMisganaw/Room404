@@ -74,21 +74,21 @@ function useCustomerRegistration() {
 
 function ToastContainer({ toasts, onDismiss }) {
   return (
-    <div className="fixed right-4 top-4 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2">
+    <div className="fixed right-4 top-20 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2">
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`rounded-lg border px-4 py-3 text-sm shadow-lg ${
+          className={`rounded-xl border px-4 py-3 text-sm shadow-lg ${
             toast.type === 'success'
-              ? 'border-green-200 bg-green-50 text-green-800'
-              : 'border-red-200 bg-red-50 text-red-800'
+              ? 'border-green-200 bg-green-50 text-green-700'
+              : 'border-orange-200 bg-orange-50 text-orange-700'
           }`}
         >
           <div className="flex items-start justify-between gap-2">
             <p className="font-medium">{toast.message}</p>
             <button
               type="button"
-              className="text-xs font-semibold opacity-70 transition hover:opacity-100"
+              className="text-xs font-semibold text-gray-600 transition hover:text-gray-900"
               onClick={() => onDismiss(toast.id)}
             >
               Dismiss
@@ -102,11 +102,11 @@ function ToastContainer({ toasts, onDismiss }) {
 
 function Navbar({ receptionist, roomStats, onLogout }) {
   return (
-    <header className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <header className="fixed inset-x-0 top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Reception Dashboard</h1>
-          <p className="text-sm text-slate-600">
+          <h1 className="text-xl font-bold text-gray-900">Reception Dashboard</h1>
+          <p className="text-sm text-gray-600">
             {receptionist?.name} • {receptionist?.role}
           </p>
         </div>
@@ -120,7 +120,7 @@ function Navbar({ receptionist, roomStats, onLogout }) {
         <button
           type="button"
           onClick={onLogout}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
           Logout
         </button>
@@ -131,21 +131,21 @@ function Navbar({ receptionist, roomStats, onLogout }) {
 
 function StatCard({ label, value }) {
   return (
-    <div className="rounded-md bg-slate-100 px-3 py-2 text-center">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="text-lg font-bold text-slate-900">{value}</p>
+    <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-center shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="text-lg font-bold text-gray-900">{value}</p>
     </div>
   );
 }
 
 function RoomAssignmentForm({ formState, onChange, onSubmit, loading, errorMessage, assignmentResult }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="mb-4 text-lg font-semibold text-slate-900">Room Assignment</h2>
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg transition hover:shadow-xl">
+      <h2 className="mb-4 text-xl font-bold text-gray-900">Room Assignment</h2>
 
       <form className="space-y-4" onSubmit={onSubmit}>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Customer Name</label>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">Customer Name</label>
           <input
             type="text"
             name="customerName"
@@ -153,44 +153,44 @@ function RoomAssignmentForm({ formState, onChange, onSubmit, loading, errorMessa
             onChange={onChange}
             required
             placeholder="Enter full name"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 transition focus:ring-2"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
           />
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Check-in Date</label>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">Check-in Date</label>
             <input
               type="date"
               name="checkInDate"
               value={formState.checkInDate}
               onChange={onChange}
               required
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 transition focus:ring-2"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Check-out Date</label>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">Check-out Date</label>
             <input
               type="date"
               name="checkOutDate"
               value={formState.checkOutDate}
               onChange={onChange}
               required
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 transition focus:ring-2"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
             />
           </div>
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Room Type</label>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">Room Type</label>
           <select
             name="roomType"
             value={formState.roomType}
             onChange={onChange}
             required
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 transition focus:ring-2"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
           >
             <option value="Single">Single</option>
             <option value="Double">Double</option>
@@ -199,7 +199,7 @@ function RoomAssignmentForm({ formState, onChange, onSubmit, loading, errorMessa
         </div>
 
         {errorMessage && (
-          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-700">
             {errorMessage}
           </p>
         )}
@@ -207,15 +207,15 @@ function RoomAssignmentForm({ formState, onChange, onSubmit, loading, errorMessa
         <button
           type="submit"
           disabled={loading}
-          className="flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-70"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
         >
-          {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+          {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-blue-200" />}
           {loading ? 'Assigning Room...' : 'Assign Room & Generate Credentials'}
         </button>
       </form>
 
       {assignmentResult && (
-        <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+        <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 shadow-sm">
           <p className="font-semibold">Room Assigned Successfully</p>
           <p className="mt-1">Room Number: {assignmentResult.roomNumber}</p>
           <p>Username: {assignmentResult.username}</p>
@@ -228,28 +228,28 @@ function RoomAssignmentForm({ formState, onChange, onSubmit, loading, errorMessa
 
 function RoomTable({ rooms, searchValue, onSearchChange, selectedRoomType, onTypeFilterChange }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg transition hover:shadow-xl">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">Room Lookup</h2>
+        <h2 className="text-xl font-bold text-gray-900">Room Lookup</h2>
 
         <div className="grid w-full grid-cols-1 gap-3 sm:w-auto sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs font-medium uppercase text-slate-600">Search Room #</label>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">Search Room #</label>
             <input
               type="text"
               value={searchValue}
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder="e.g. 201"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 transition focus:ring-2"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium uppercase text-slate-600">Filter Type</label>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">Filter Type</label>
             <select
               value={selectedRoomType}
               onChange={(event) => onTypeFilterChange(event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 transition focus:ring-2"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
             >
               <option value="All">All</option>
               <option value="Single">Single</option>
@@ -261,32 +261,32 @@ function RoomTable({ rooms, searchValue, onSearchChange, selectedRoomType, onTyp
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead>
-            <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-600">
+            <tr className="bg-gray-100 text-left text-xs uppercase tracking-wide text-gray-600">
               <th className="px-3 py-2">Room Number</th>
               <th className="px-3 py-2">Type</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Assigned Customer</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-gray-100">
             {rooms.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-3 py-4 text-center text-slate-500">
+                <td colSpan={4} className="px-3 py-4 text-center text-gray-500">
                   No rooms match your filters.
                 </td>
               </tr>
             )}
 
             {rooms.map((room) => (
-              <tr key={room.roomNumber} className="hover:bg-slate-50">
-                <td className="px-3 py-2 font-medium text-slate-900">{room.roomNumber}</td>
-                <td className="px-3 py-2 text-slate-700">{room.type}</td>
+              <tr key={room.roomNumber} className="even:bg-gray-50 hover:bg-blue-50/60">
+                <td className="px-3 py-2 font-medium text-gray-900">{room.roomNumber}</td>
+                <td className="px-3 py-2 text-gray-700">{room.type}</td>
                 <td className="px-3 py-2">
                   <StatusBadge status={room.status} />
                 </td>
-                <td className="px-3 py-2 text-slate-700">{room.assignedCustomer || '-'}</td>
+                <td className="px-3 py-2 text-gray-700">{room.assignedCustomer || '-'}</td>
               </tr>
             ))}
           </tbody>
@@ -298,15 +298,15 @@ function RoomTable({ rooms, searchValue, onSearchChange, selectedRoomType, onTyp
 
 function StatusBadge({ status }) {
   const statusClasses = {
-    Available: 'bg-green-100 text-green-800 border-green-200',
-    Occupied: 'bg-red-100 text-red-800 border-red-200',
-    'Cleaning Pending': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    Available: 'bg-green-100 text-green-700 border-green-200',
+    Occupied: 'bg-orange-100 text-orange-700 border-orange-200',
+    'Cleaning Pending': 'bg-yellow-100 text-yellow-700 border-yellow-200',
   };
 
   return (
     <span
       className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
-        statusClasses[status] || 'bg-slate-100 text-slate-700 border-slate-200'
+        statusClasses[status] || 'bg-gray-100 text-gray-700 border-gray-200'
       }`}
     >
       {status}
@@ -440,7 +440,7 @@ export default function ReceptionDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-50 px-4 pb-6 pt-28 font-sans md:px-6">
       <Navbar receptionist={user} roomStats={roomStats} onLogout={handleLogout} />
 
       <main className="grid grid-cols-1 gap-6 xl:grid-cols-2">

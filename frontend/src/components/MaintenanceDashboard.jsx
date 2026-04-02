@@ -109,14 +109,14 @@ function useResolveIssue() {
 
 function ToastContainer({ toasts, onDismiss }) {
   return (
-    <div className="fixed right-4 top-4 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2">
+    <div className="fixed right-4 top-20 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2">
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`rounded-lg border px-4 py-3 text-sm shadow-lg ${
+          className={`rounded-xl border px-4 py-3 text-sm shadow-lg ${
             toast.type === 'success'
-              ? 'border-green-200 bg-green-50 text-green-800'
-              : 'border-red-200 bg-red-50 text-red-800'
+              ? 'border-green-200 bg-green-50 text-green-700'
+              : 'border-orange-200 bg-orange-50 text-orange-700'
           }`}
         >
           <div className="flex items-center justify-between gap-3">
@@ -124,7 +124,7 @@ function ToastContainer({ toasts, onDismiss }) {
             <button
               type="button"
               onClick={() => onDismiss(toast.id)}
-              className="text-xs font-semibold opacity-75 transition hover:opacity-100"
+              className="text-xs font-semibold text-gray-600 transition hover:text-gray-900"
             >
               Dismiss
             </button>
@@ -137,11 +137,11 @@ function ToastContainer({ toasts, onDismiss }) {
 
 function Navbar({ user, stats, onLogout }) {
   return (
-    <header className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <header className="fixed inset-x-0 top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Maintenance Dashboard</h1>
-          <p className="text-sm text-slate-600">
+          <h1 className="text-xl font-bold text-gray-900">Maintenance Dashboard</h1>
+          <p className="text-sm text-gray-600">
             {user.name} • {user.role}
           </p>
         </div>
@@ -154,7 +154,7 @@ function Navbar({ user, stats, onLogout }) {
         <button
           type="button"
           onClick={onLogout}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-500"
         >
           Logout
         </button>
@@ -165,24 +165,24 @@ function Navbar({ user, stats, onLogout }) {
 
 function StatCard({ label, value }) {
   return (
-    <div className="rounded-md bg-slate-100 px-3 py-2 text-center">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="text-lg font-bold text-slate-900">{value}</p>
+    <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-center shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="text-lg font-bold text-gray-900">{value}</p>
     </div>
   );
 }
 
 function StatusBadge({ status }) {
   const statusClass = {
-    Pending: 'border-red-200 bg-red-100 text-red-800',
-    'In Progress': 'border-yellow-200 bg-yellow-100 text-yellow-800',
-    Resolved: 'border-green-200 bg-green-100 text-green-800',
+    Pending: 'border-orange-200 bg-orange-100 text-orange-700',
+    'In Progress': 'border-yellow-200 bg-yellow-100 text-yellow-700',
+    Resolved: 'border-green-200 bg-green-100 text-green-700',
   };
 
   return (
     <span
       className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
-        statusClass[status] || 'border-slate-200 bg-slate-100 text-slate-700'
+        statusClass[status] || 'border-gray-200 bg-gray-100 text-gray-700'
       }`}
     >
       {status}
@@ -196,18 +196,20 @@ function IssueCard({ issue, selected, onSelect, onResolve, loadingIssueId }) {
   return (
     <article
       className={`rounded-lg border p-4 shadow-sm transition ${
-        selected ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'
+        selected
+          ? 'border-blue-300 bg-blue-50 shadow-md'
+          : 'border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">Room</p>
-          <p className="text-lg font-semibold text-slate-900">#{issue.roomNumber}</p>
+          <p className="text-xs uppercase tracking-wide text-gray-500">Room</p>
+          <p className="text-lg font-semibold text-gray-900">#{issue.roomNumber}</p>
         </div>
         <StatusBadge status={issue.status} />
       </div>
 
-      <div className="mt-3 space-y-1 text-sm text-slate-700">
+      <div className="mt-3 space-y-1 text-sm text-gray-700">
         <p>
           <span className="font-semibold">Issue Type:</span> {issue.issueType}
         </p>
@@ -219,13 +221,13 @@ function IssueCard({ issue, selected, onSelect, onResolve, loadingIssueId }) {
         </p>
       </div>
 
-      <p className="mt-3 text-sm text-slate-700">{issue.description}</p>
+      <p className="mt-3 text-sm text-gray-700">{issue.description}</p>
 
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <button
           type="button"
           onClick={() => onSelect(issue)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
         >
           {selected ? 'Selected' : 'View Details'}
         </button>
@@ -233,9 +235,9 @@ function IssueCard({ issue, selected, onSelect, onResolve, loadingIssueId }) {
           type="button"
           onClick={() => onResolve(issue)}
           disabled={issue.status === 'Resolved' || isLoading}
-          className="flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center justify-center gap-2 rounded-lg bg-green-500 px-3 py-2.5 text-sm font-semibold text-white shadow-lg shadow-green-100 transition hover:-translate-y-0.5 hover:bg-green-400 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
         >
-          {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+          {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-green-200" />}
           {issue.status === 'Resolved' ? 'Resolved' : 'Resolve Issue'}
         </button>
       </div>
@@ -247,8 +249,8 @@ function IssueDetails({ issue, onResolve, loadingIssueId }) {
   if (!issue) {
     return (
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Issue Details</h2>
-        <p className="mt-2 text-sm text-slate-600">Select an issue from the queue to view full details.</p>
+        <h2 className="text-lg font-bold text-gray-900">Issue Details</h2>
+        <p className="mt-2 text-sm text-gray-600">Select an issue from the queue to view full details.</p>
       </section>
     );
   }
@@ -256,9 +258,9 @@ function IssueDetails({ issue, onResolve, loadingIssueId }) {
   const isLoading = loadingIssueId === issue.id;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">Issue Details</h2>
-      <div className="mt-4 space-y-2 text-sm text-slate-700">
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg">
+      <h2 className="text-xl font-bold text-gray-900">Issue Details</h2>
+      <div className="mt-4 space-y-2 text-sm text-gray-700">
         <p>
           <span className="font-semibold">Room Number:</span> #{issue.roomNumber}
         </p>
@@ -283,9 +285,9 @@ function IssueDetails({ issue, onResolve, loadingIssueId }) {
         type="button"
         onClick={() => onResolve(issue)}
         disabled={issue.status === 'Resolved' || isLoading}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
       >
-        {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+        {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-blue-200" />}
         {issue.status === 'Resolved' ? 'Issue Already Resolved' : 'Resolve Issue'}
       </button>
     </section>
@@ -296,7 +298,7 @@ function CustomerFeedback({ issue, feedbackValue, onSubmitFeedback, onClear }) {
   if (!issue || issue.status !== 'Resolved') {
     return (
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Customer Feedback</h2>
+        <h2 className="text-lg font-bold text-gray-900">Customer Feedback</h2>
         <p className="mt-2 text-sm text-slate-600">
           Resolve an issue to collect customer feedback.
         </p>
@@ -305,9 +307,9 @@ function CustomerFeedback({ issue, feedbackValue, onSubmitFeedback, onClear }) {
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">Customer Feedback</h2>
-      <p className="mt-2 text-sm text-slate-700">
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg">
+      <h2 className="text-xl font-bold text-gray-900">Customer Feedback</h2>
+      <p className="mt-2 text-sm text-gray-700">
         Was issue in room #{issue.roomNumber} fixed correctly?
       </p>
 
@@ -315,28 +317,28 @@ function CustomerFeedback({ issue, feedbackValue, onSubmitFeedback, onClear }) {
         <button
           type="button"
           onClick={() => onSubmitFeedback('Yes')}
-          className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500"
+          className="rounded-lg bg-green-500 px-3 py-2.5 text-sm font-semibold text-white shadow-lg shadow-green-100 transition hover:-translate-y-0.5 hover:bg-green-400"
         >
           Yes
         </button>
         <button
           type="button"
           onClick={() => onSubmitFeedback('No')}
-          className="rounded-md bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-rose-500"
+          className="rounded-lg bg-orange-500 px-3 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-100 transition hover:-translate-y-0.5 hover:bg-orange-400"
         >
           No
         </button>
       </div>
 
       {feedbackValue && (
-        <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+        <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
           <p>
             Latest Feedback: <span className="font-semibold">{feedbackValue}</span>
           </p>
           <button
             type="button"
             onClick={onClear}
-            className="mt-2 text-xs font-semibold text-blue-700 transition hover:text-blue-600"
+            className="mt-2 text-xs font-semibold text-blue-600 transition hover:text-blue-500"
           >
             Clear Feedback Selection
           </button>
@@ -475,21 +477,21 @@ export default function MaintenanceDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-50 px-4 pb-6 pt-28 font-sans md:px-6">
       <Navbar user={user} stats={stats} onLogout={handleLogout} />
 
       {errorMessage && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
           {errorMessage}
         </div>
       )}
 
       <main className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">Issue Queue</h2>
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg">
+          <h2 className="mb-4 text-xl font-bold text-gray-900">Issue Queue</h2>
           <div className="space-y-3">
             {issues.length === 0 && (
-              <div className="rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
+              <div className="rounded-lg border border-dashed border-gray-300 px-3 py-5 text-center text-sm text-gray-500">
                 No issues currently in the queue.
               </div>
             )}
