@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
 from app.core.config import CORS_ALLOWED_ORIGINS
-from app.db.database import Base, SessionLocal, engine
+from app.db.database import Base, SessionLocal, engine, ensure_additive_schema
 from app.models import models  # noqa: F401 — registers ORM models before create_all
 
 
@@ -48,7 +48,28 @@ def _seed_food_availability(db) -> None:
     ]
 
     for data in initial_items:
+        data["version"] = 1
+        data["updated_by"] = "cafeteria"
         db.add(models.FoodAvailability(**data))
+
+    db.commit()
+
+
+def _seed_staff_members(db) -> None:
+    """Insert baseline staff pools if empty."""
+    if db.query(models.StaffMember).count() > 0:
+        return
+
+    initial_staff = [
+        {"name": "Cleaner 1", "pool": "workers", "is_available": True},
+        {"name": "Cleaner 2", "pool": "workers", "is_available": True},
+        {"name": "Cleaner 3", "pool": "workers", "is_available": True},
+        {"name": "Tech 1", "pool": "maintenance", "is_available": True},
+        {"name": "Tech 2", "pool": "maintenance", "is_available": True},
+    ]
+
+    for data in initial_staff:
+        db.add(models.StaffMember(**data))
 
     db.commit()
 
@@ -56,10 +77,12 @@ def _seed_food_availability(db) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    ensure_additive_schema()
     db = SessionLocal()
     try:
         _seed_rooms(db)
         _seed_food_availability(db)
+        _seed_staff_members(db)
     finally:
         db.close()
     yield

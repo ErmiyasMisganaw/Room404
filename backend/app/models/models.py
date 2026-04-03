@@ -19,6 +19,9 @@ class Task(Base):
     status = Column(String, default="Pending")     # Pending | In Progress | Done
     priority = Column(String, default="Medium")    # Low | Medium | High
     staff_instruction = Column(String, default="")
+    assigned_staff_id = Column(Integer, ForeignKey("staff_members.id"), nullable=True, index=True)
+    assigned_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow)
 
@@ -68,4 +71,32 @@ class FoodAvailability(Base):
     available_quantity = Column(Integer, default=0)
     is_available = Column(Boolean, default=True)
     note = Column(String, default="")
+    version = Column(Integer, default=1)
+    updated_by = Column(String, default="cafeteria")
     updated_at = Column(DateTime, default=_utcnow)
+
+
+class StaffMember(Base):
+    __tablename__ = "staff_members"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    pool = Column(String, index=True)  # workers | maintenance
+    is_available = Column(Boolean, default=True)
+    cooldown_until = Column(DateTime, nullable=True)
+    active_task_count = Column(Integer, default=0)
+    total_assigned_count = Column(Integer, default=0)
+    completed_task_count = Column(Integer, default=0)
+    last_assigned_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow)
+
+
+class ChatMemory(Base):
+    __tablename__ = "chat_memory"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_key = Column(String, index=True)
+    role = Column(String, index=True)  # user | assistant
+    line = Column(String, default="")
+    created_at = Column(DateTime, default=_utcnow)

@@ -5,28 +5,39 @@ from typing import Any
 from uuid import uuid4
 
 import google.generativeai as genai
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
-from app.core.config import GEMINI_API_KEY, GEMINI_MODEL_NAME
+from app.core.config import GEMINI_API_KEY, GEMINI_MODEL_NAME, STAFF_COOLDOWN_MINUTES
 from app.db.database import get_db
-from app.models.models import FoodAvailability, Room, RoutedInstruction, Task, TaskFeedback
+from app.models.models import ChatMemory, FoodAvailability, Room, RoutedInstruction, StaffMember, Task, TaskFeedback
 from app.schemas.schemas import (
+    AgentResponseEnvelope,
     CafeteriaCompleteTaskRequest,
+    CafeteriaOrderData,
     ChatRequest,
+    CustomerReplyData,
     DispatchRequest,
     DispatchResponse,
     FoodAvailabilityItem,
     FoodAvailabilityResponse,
+    IgnoreData,
     InboxResponse,
+    MenuItemUpsertRequest,
+    MenuResponse,
+    ResponseMeta,
     RoomOut,
     RoutedInstruction as RoutedInstructionSchema,
+    StaffLeaderboardItem,
+    StaffLeaderboardResponse,
+    TaskAssignmentData,
     TaskFeedbackQueueResponse,
     TaskFeedbackRecord,
     TaskFeedbackUpdateRequest,
     TaskOut,
     TaskStatusUpdate,
 )
+from app.services.assignment import apply_task_completion_effects, assign_task_to_staff
 
 router = APIRouter(prefix="/api", tags=["api"])
 
@@ -134,6 +145,10 @@ genai.configure(api_key=GEMINI_API_KEY)
 _gemini = genai.GenerativeModel(GEMINI_MODEL_NAME, system_instruction=SYSTEM_INSTRUCTIONS)
 
 
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 def _parse_json(text: str) -> Any:
     cleaned = text.strip()
     if cleaned.startswith("```"):
@@ -158,6 +173,7 @@ def _task_dict(task: Task) -> dict:
         "status": task.status,
         "priority": task.priority,
         "staff_instruction": task.staff_instruction,
+        "assigned_staff_id": task.assigned_staff_id,
         "created_at": task.created_at.isoformat() if task.created_at else None,
     }
 
@@ -207,9 +223,176 @@ def _food_to_schema(record: FoodAvailability) -> FoodAvailabilityItem:
         item_name=record.item_name,
         available_quantity=record.available_quantity,
         is_available=record.is_available,
+        version=record.version,
+        updated_by=record.updated_by,
         updated_at=record.updated_at,
         note=record.note,
     )
+
+
+def _normalize_category(value: str) -> str:
+    normalized = (value or "").strip().title()
+    aliases = {
+        "Worker": "Workers",
+        "Workers": "Workers",
+        "Housekeeping": "Workers",
+        "Cleaning": "Workers",
+        "Food": "Food",
+        "Maintenance": "Maintenance",
+        "Manager": "Manager",
+        "Ignore": "Ignore",
+    }
+    return aliases.get(normalized, "Manager")
+
+
+def _build_user_key(request: ChatRequest) -> str:
+    if request.user_id and request.user_id.strip():
+        return request.user_id.strip().lower()
+    return f"{request.name.strip().lower()}::{request.room_number.strip()}"
+
+
+def _get_recent_chat_lines(db: Session, user_key: str, limit: int = 5) -> list[ChatMemory]:
+    rows = (
+        db.query(ChatMemory)
+        .filter(ChatMemory.user_key == user_key)
+        .order_by(ChatMemory.created_at.desc(), ChatMemory.id.desc())
+        .limit(limit)
+        .all()
+    )
+    rows.reverse()
+    return rows
+
+
+def _append_chat_line(db: Session, user_key: str, role: str, line: str) -> None:
+    entry = ChatMemory(user_key=user_key, role=role, line=line)
+    db.add(entry)
+    db.flush()
+
+    ordered_rows = (
+        db.query(ChatMemory)
+        .filter(ChatMemory.user_key == user_key)
+        .order_by(ChatMemory.created_at.desc(), ChatMemory.id.desc())
+        .all()
+    )
+    for stale in ordered_rows[5:]:
+        db.delete(stale)
+
+
+def _extract_requested_item(message: str, items: list[FoodAvailability]) -> str:
+    lowered = message.lower()
+    for item in sorted(items, key=lambda row: len(row.item_name), reverse=True):
+        if item.item_name.lower() in lowered:
+            return item.item_name
+    return ""
+
+
+def _fallback_classification(message: str) -> dict[str, str]:
+    lowered = (message or "").lower()
+
+    ignore_hints = ["never mind", "nevermind", "ignore this", "cancel that", "no need"]
+    food_hints = ["food", "menu", "eat", "meal", "breakfast", "lunch", "dinner", "juice", "order"]
+    maintenance_hints = ["ac", "air condition", "leak", "broken", "wifi", "tv", "light", "faucet"]
+    worker_hints = ["clean", "cleaning", "towel", "pillows", "toothbrush", "housekeeping", "luggage"]
+    manager_hints = ["complaint", "refund", "upgrade", "security", "manager"]
+
+    if any(hint in lowered for hint in ignore_hints):
+        category = "Ignore"
+    elif any(hint in lowered for hint in food_hints):
+        category = "Food"
+    elif any(hint in lowered for hint in maintenance_hints):
+        category = "Maintenance"
+    elif any(hint in lowered for hint in worker_hints):
+        category = "Workers"
+    elif any(hint in lowered for hint in manager_hints):
+        category = "Manager"
+    else:
+        category = "Manager"
+
+    return {
+        "category": category,
+        "response_to_guest": "We received your request and will handle it shortly.",
+        "staff_instruction": message,
+        "priority": "Medium",
+    }
+
+
+def _classify_with_context(
+    message: str,
+    history: list[ChatMemory],
+    available_menu: list[str],
+) -> dict[str, Any]:
+    history_block = "\n".join(f"{line.role}: {line.line}" for line in history) or "none"
+    menu_block = ", ".join(available_menu) if available_menu else "none"
+
+    prompt = (
+        "Use the system instructions and return only JSON with the required schema.\n"
+        "Recent conversation (max 5 lines):\n"
+        f"{history_block}\n"
+        "Currently available menu items:\n"
+        f"{menu_block}\n"
+        "User request:\n"
+        f"{message}"
+    )
+
+    try:
+        response = _gemini.generate_content(prompt)
+        if response.text:
+            payload = _parse_json(response.text)
+            if isinstance(payload, dict):
+                return payload
+    except Exception:
+        pass
+
+    return _fallback_classification(message)
+
+
+def _upsert_menu_item(
+    db: Session,
+    *,
+    item_name: str,
+    available_quantity: int,
+    is_available: bool,
+    note: str,
+    updated_by: str,
+) -> None:
+    now = _utcnow()
+    key = item_name.strip()
+
+    row = db.query(FoodAvailability).filter(FoodAvailability.item_name == key).first()
+    if row:
+        row.available_quantity = available_quantity
+        row.is_available = is_available
+        row.note = note
+        row.version = int(row.version or 1) + 1
+        row.updated_by = updated_by
+        row.updated_at = now
+        return
+
+    db.add(
+        FoodAvailability(
+            item_name=key,
+            available_quantity=available_quantity,
+            is_available=is_available,
+            note=note,
+            version=1,
+            updated_by=updated_by,
+            updated_at=now,
+        )
+    )
+
+
+def _build_menu_response(db: Session, include_unavailable: bool) -> MenuResponse:
+    rows_query = db.query(FoodAvailability)
+    if not include_unavailable:
+        rows_query = rows_query.filter(
+            FoodAvailability.is_available.is_(True),
+            FoodAvailability.available_quantity > 0,
+        )
+
+    rows = rows_query.order_by(FoodAvailability.item_name.asc()).all()
+    all_rows = db.query(FoodAvailability).all()
+    is_open = any(item.is_available and item.available_quantity > 0 for item in all_rows)
+    return MenuResponse(open=is_open, items=[_food_to_schema(item) for item in rows])
 
 
 # ---------------------------------------------------------------------------
@@ -239,50 +422,294 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 # Chat / AI agent with function calling
 # ---------------------------------------------------------------------------
 
-@router.post("/chat")
-async def chat(request: ChatRequest, db: Session = Depends(get_db)) -> Any:
+async def _handle_customer_request(
+    *,
+    request: ChatRequest,
+    payload: dict[str, Any],
+    request_id: str,
+    user_key: str,
+    recent_history_count: int,
+    category: str,
+) -> AgentResponseEnvelope:
+    message = payload.get("response_to_guest") or "We received your request and will handle it shortly."
+    return AgentResponseEnvelope(
+        ok=True,
+        response_type="customer_reply",
+        message=message,
+        data=CustomerReplyData(
+            user_id=request.user_id or user_key,
+            context_used=recent_history_count > 0,
+            recent_history_count=recent_history_count,
+        ),
+        meta=ResponseMeta(request_id=request_id, category=category),
+    )
+
+
+async def _handle_ignore_request(
+    *,
+    payload: dict[str, Any],
+    request_id: str,
+) -> AgentResponseEnvelope:
+    message = payload.get("response_to_guest") or "Request acknowledged. No action was required."
+    return AgentResponseEnvelope(
+        ok=True,
+        response_type="ignore",
+        message=message,
+        data=IgnoreData(
+            reason="ignored_by_policy",
+            task_created=False,
+            notified_staff=False,
+        ),
+        meta=ResponseMeta(request_id=request_id, category="Ignore"),
+    )
+
+
+async def _handle_task_assignment_request(
+    *,
+    db: Session,
+    request: ChatRequest,
+    payload: dict[str, Any],
+    request_id: str,
+    category: str,
+    domain: str,
+) -> AgentResponseEnvelope:
+    normalized_priority = (payload.get("priority") or "Medium").strip().title()
+    staff_instruction = payload.get("staff_instruction") or request.message
+
+    task = Task(
+        category=category,
+        description=request.message,
+        room_number=request.room_number,
+        status="Pending",
+        priority=normalized_priority,
+        staff_instruction=staff_instruction,
+    )
+    db.add(task)
+    db.flush()
+
+    selected_staff = assign_task_to_staff(
+        db=db,
+        task=task,
+        pool=_normalize_queue(category),
+        cooldown_minutes=STAFF_COOLDOWN_MINUTES,
+    )
+
+    db.add(
+        RoutedInstruction(
+            instruction_id=f"t-{task.id}",
+            queue_name=_normalize_queue(category),
+            category=category,
+            title="AI chat request",
+            description=request.message,
+            room=request.room_number,
+            priority=normalized_priority,
+            response_to_guest=payload.get("response_to_guest") or "",
+            staff_instruction=staff_instruction,
+            status="pending",
+            linked_task_id=task.id,
+        )
+    )
+
+    db.commit()
+    db.refresh(task)
+
+    await manager.broadcast("new_task", _task_dict(task))
+
+    if selected_staff:
+        default_message = "A staff member has been assigned and is on the way."
+        assignment_status = "assigned"
+        assigned_staff_id = selected_staff.id
+    else:
+        default_message = "Your request is queued and will be assigned shortly."
+        assignment_status = "queued_unassigned"
+        assigned_staff_id = None
+
+    message = payload.get("response_to_guest") or default_message
+    return AgentResponseEnvelope(
+        ok=True,
+        response_type="task_assignment",
+        message=message,
+        data=TaskAssignmentData(
+            task_id=task.id,
+            domain=domain,
+            assigned_staff_id=assigned_staff_id,
+            priority=normalized_priority,
+            eta_hint="Based on current queue",
+            assignment_status=assignment_status,
+        ),
+        meta=ResponseMeta(request_id=request_id, category=category),
+    )
+
+
+async def _handle_cafeteria_request(
+    *,
+    db: Session,
+    request: ChatRequest,
+    request_id: str,
+) -> AgentResponseEnvelope:
+    menu_rows = db.query(FoodAvailability).order_by(FoodAvailability.item_name.asc()).all()
+    available_rows = [
+        row
+        for row in menu_rows
+        if row.is_available and int(row.available_quantity or 0) > 0
+    ]
+    available_names = [row.item_name for row in available_rows]
+    requested_item = _extract_requested_item(request.message, menu_rows)
+
+    if not available_rows:
+        return AgentResponseEnvelope(
+            ok=True,
+            response_type="cafeteria_order",
+            message="food unavailable. No menu items are currently available.",
+            data=CafeteriaOrderData(
+                order_status="unavailable",
+                requested_item=requested_item or "unknown",
+                alternatives=[],
+                routed_to_service=False,
+            ),
+            meta=ResponseMeta(request_id=request_id, category="Food"),
+        )
+
+    if not requested_item:
+        return AgentResponseEnvelope(
+            ok=True,
+            response_type="cafeteria_order",
+            message="food unavailable. Requested item is not on the menu right now.",
+            data=CafeteriaOrderData(
+                order_status="unavailable",
+                requested_item="unknown",
+                alternatives=available_names[:3],
+                routed_to_service=False,
+            ),
+            meta=ResponseMeta(request_id=request_id, category="Food"),
+        )
+
+    if requested_item and requested_item not in available_names:
+        alternatives = [item for item in available_names if item != requested_item][:3]
+        return AgentResponseEnvelope(
+            ok=True,
+            response_type="cafeteria_order",
+            message=f"food unavailable: {requested_item}. Please choose one of the alternatives.",
+            data=CafeteriaOrderData(
+                order_status="unavailable",
+                requested_item=requested_item,
+                alternatives=alternatives,
+                routed_to_service=False,
+            ),
+            meta=ResponseMeta(request_id=request_id, category="Food"),
+        )
+
+    normalized_priority = "Medium"
+    staff_instruction = f"Prepare {requested_item} for room {request.room_number}."
+
+    task = Task(
+        category="Food",
+        description=request.message,
+        room_number=request.room_number,
+        status="Pending",
+        priority=normalized_priority,
+        staff_instruction=staff_instruction,
+    )
+    db.add(task)
+    db.flush()
+
+    db.add(
+        RoutedInstruction(
+            instruction_id=f"t-{task.id}",
+            queue_name="food",
+            category="Food",
+            title="AI cafeteria request",
+            description=request.message,
+            room=request.room_number,
+            priority=normalized_priority,
+            response_to_guest="",
+            staff_instruction=staff_instruction,
+            status="pending",
+            linked_task_id=task.id,
+        )
+    )
+
+    db.commit()
+    db.refresh(task)
+
+    await manager.broadcast("new_task", _task_dict(task))
+
+    return AgentResponseEnvelope(
+        ok=True,
+        response_type="cafeteria_order",
+        message="Your food is ordered and will arrive shortly.",
+        data=CafeteriaOrderData(
+            order_status="accepted",
+            requested_item=requested_item,
+            alternatives=[name for name in available_names if name != requested_item][:3],
+            routed_to_service=True,
+        ),
+        meta=ResponseMeta(request_id=request_id, category="Food"),
+    )
+
+
+@router.post("/chat", response_model=AgentResponseEnvelope)
+async def chat(request: ChatRequest, db: Session = Depends(get_db)) -> AgentResponseEnvelope:
     try:
-        response = _gemini.generate_content(request.message)
-        if not response.text:
-            raise HTTPException(status_code=502, detail="Gemini returned an empty response.")
+        request_id = str(uuid4())
+        user_key = _build_user_key(request)
+        history = _get_recent_chat_lines(db, user_key=user_key, limit=5)
+        available_menu = [
+            item.item_name
+            for item in db.query(FoodAvailability)
+            .filter(FoodAvailability.is_available.is_(True), FoodAvailability.available_quantity > 0)
+            .order_by(FoodAvailability.item_name.asc())
+            .all()
+        ]
 
-        payload = _parse_json(response.text)
-        category: str = payload.get("category", "Ignore")
+        payload = _classify_with_context(
+            message=request.message,
+            history=history,
+            available_menu=available_menu,
+        )
+        category = _normalize_category(payload.get("category", "Ignore"))
 
-        # Auto-create a task for actionable categories
-        if category not in ("Ignore", "Manager"):
-            task = Task(
-                category=category,
-                description=request.message,
-                room_number=request.room_number,
-                status="Pending",
-                priority=payload.get("priority", "Medium"),
-                staff_instruction=payload.get("staff_instruction", ""),
+        if category == "Food":
+            envelope = await _handle_cafeteria_request(
+                db=db,
+                request=request,
+                request_id=request_id,
             )
-            db.add(task)
-            db.commit()
-            db.refresh(task)
-
-            instruction = RoutedInstruction(
-                instruction_id=f"t-{task.id}",
-                queue_name=_normalize_queue(category),
+        elif category == "Workers":
+            envelope = await _handle_task_assignment_request(
+                db=db,
+                request=request,
+                payload=payload,
+                request_id=request_id,
                 category=category,
-                title="AI chat request",
-                description=request.message,
-                room=request.room_number,
-                priority=payload.get("priority", "Medium"),
-                response_to_guest=payload.get("response_to_guest", ""),
-                staff_instruction=payload.get("staff_instruction", ""),
-                status="pending",
-                linked_task_id=task.id,
+                domain="cleaning",
             )
-            db.add(instruction)
-            db.commit()
+        elif category == "Maintenance":
+            envelope = await _handle_task_assignment_request(
+                db=db,
+                request=request,
+                payload=payload,
+                request_id=request_id,
+                category=category,
+                domain="maintenance",
+            )
+        elif category == "Ignore":
+            envelope = await _handle_ignore_request(payload=payload, request_id=request_id)
+        else:
+            envelope = await _handle_customer_request(
+                request=request,
+                payload=payload,
+                request_id=request_id,
+                user_key=user_key,
+                recent_history_count=len(history),
+                category=category,
+            )
 
-            await manager.broadcast("new_task", _task_dict(task))
-            payload["task_id"] = task.id
+        _append_chat_line(db, user_key=user_key, role="user", line=request.message)
+        _append_chat_line(db, user_key=user_key, role="assistant", line=envelope.message)
+        db.commit()
 
-        return payload
+        return envelope
 
     except HTTPException:
         raise
@@ -309,8 +736,20 @@ async def update_task_status(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found.")
 
-    task.status = update.status
-    task.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    normalized = (update.status or "").strip().lower().replace(" ", "_")
+    if normalized in {"completed", "done"}:
+        task.status = "Done"
+        apply_task_completion_effects(db, task)
+    elif normalized == "in_progress":
+        task.status = "In Progress"
+        task.updated_at = _utcnow()
+    elif normalized == "pending":
+        task.status = "Pending"
+        task.updated_at = _utcnow()
+    else:
+        task.status = update.status
+        task.updated_at = _utcnow()
+
     db.commit()
     db.refresh(task)
 
@@ -329,10 +768,11 @@ async def update_task_status(
 # ---------------------------------------------------------------------------
 
 @router.post("/dispatch", response_model=DispatchResponse)
-def dispatch_instruction(payload: DispatchRequest, db: Session = Depends(get_db)) -> DispatchResponse:
+async def dispatch_instruction(payload: DispatchRequest, db: Session = Depends(get_db)) -> DispatchResponse:
     queue_name = _normalize_queue(payload.category)
     instruction_id = str(uuid4())
     normalized_priority = (payload.priority or "Medium").strip().title()
+    task: Task | None = None
 
     instruction = RoutedInstruction(
         instruction_id=instruction_id,
@@ -360,8 +800,19 @@ def dispatch_instruction(payload: DispatchRequest, db: Session = Depends(get_db)
         db.add(task)
         db.flush()
         instruction.linked_task_id = task.id
+        if queue_name in {"maintenance", "workers"}:
+            assign_task_to_staff(
+                db=db,
+                task=task,
+                pool=queue_name,
+                cooldown_minutes=STAFF_COOLDOWN_MINUTES,
+            )
 
     db.commit()
+
+    if task:
+        db.refresh(task)
+        await manager.broadcast("new_task", _task_dict(task))
 
     return DispatchResponse(
         instruction_id=instruction_id,
@@ -393,7 +844,7 @@ def get_inbox(queue_name: str, db: Session = Depends(get_db)) -> InboxResponse:
 def upsert_task_feedback(payload: TaskFeedbackUpdateRequest, db: Session = Depends(get_db)) -> TaskFeedbackRecord:
     normalized_queue = _normalize_queue(payload.queue_name)
     normalized_state = _normalize_state(payload.state)
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = _utcnow()
 
     record = (
         db.query(TaskFeedback)
@@ -428,6 +879,8 @@ def upsert_task_feedback(payload: TaskFeedbackUpdateRequest, db: Session = Depen
             if task:
                 task.status = STATE_TO_TASK_STATUS.get(normalized_state, task.status)
                 task.updated_at = now
+                if normalized_state == "completed":
+                    apply_task_completion_effects(db, task)
 
     db.commit()
     db.refresh(record)
@@ -459,35 +912,47 @@ def get_task_feedback_queue(queue_name: str, db: Session = Depends(get_db)) -> T
 
 @router.get("/cafeteria/availability", response_model=FoodAvailabilityResponse)
 def get_cafeteria_availability(db: Session = Depends(get_db)) -> FoodAvailabilityResponse:
-    items = db.query(FoodAvailability).order_by(FoodAvailability.item_name.asc()).all()
-    mapped = [_food_to_schema(item) for item in items]
-    is_open = any(item.is_available and item.available_quantity > 0 for item in mapped)
-    return FoodAvailabilityResponse(open=is_open, items=mapped)
+    menu = _build_menu_response(db, include_unavailable=True)
+    return FoodAvailabilityResponse(open=menu.open, items=menu.items)
 
 
 @router.post("/cafeteria/availability", response_model=FoodAvailabilityResponse)
 def upsert_cafeteria_availability(item: FoodAvailabilityItem, db: Session = Depends(get_db)) -> FoodAvailabilityResponse:
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    key = item.item_name.strip()
-
-    row = db.query(FoodAvailability).filter(FoodAvailability.item_name == key).first()
-    if row:
-        row.available_quantity = item.available_quantity
-        row.is_available = item.is_available
-        row.note = item.note or ""
-        row.updated_at = now
-    else:
-        row = FoodAvailability(
-            item_name=key,
-            available_quantity=item.available_quantity,
-            is_available=item.is_available,
-            note=item.note or "",
-            updated_at=now,
-        )
-        db.add(row)
-
+    _upsert_menu_item(
+        db,
+        item_name=item.item_name,
+        available_quantity=item.available_quantity,
+        is_available=item.is_available,
+        note=item.note or "",
+        updated_by=item.updated_by or "cafeteria",
+    )
     db.commit()
     return get_cafeteria_availability(db)
+
+
+@router.get("/menu", response_model=MenuResponse)
+def get_menu(
+    include_unavailable: bool = Query(default=False),
+    db: Session = Depends(get_db),
+) -> MenuResponse:
+    return _build_menu_response(db, include_unavailable=include_unavailable)
+
+
+@router.post("/menu", response_model=MenuResponse)
+def upsert_menu(item: MenuItemUpsertRequest, db: Session = Depends(get_db)) -> MenuResponse:
+    if item.updated_by_role.strip().lower() != "cafeteria":
+        raise HTTPException(status_code=403, detail="Only cafeteria staff can update menu items.")
+
+    _upsert_menu_item(
+        db,
+        item_name=item.item_name,
+        available_quantity=item.available_quantity,
+        is_available=item.is_available,
+        note=item.note or "",
+        updated_by=item.updated_by,
+    )
+    db.commit()
+    return _build_menu_response(db, include_unavailable=True)
 
 
 @router.post("/cafeteria/complete-task", response_model=TaskFeedbackRecord)
@@ -502,6 +967,46 @@ def complete_cafeteria_task(payload: CafeteriaCompleteTaskRequest, db: Session =
         db,
     )
     return feedback
+
+
+@router.get("/staff/leaderboard", response_model=StaffLeaderboardResponse)
+def get_staff_leaderboard(
+    pool: str = Query(default="workers"),
+    limit: int = Query(default=10, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> StaffLeaderboardResponse:
+    normalized_pool = pool.strip().lower()
+    if normalized_pool not in {"workers", "maintenance"}:
+        raise HTTPException(status_code=400, detail="pool must be 'workers' or 'maintenance'")
+
+    rows = (
+        db.query(StaffMember)
+        .filter(StaffMember.pool == normalized_pool)
+        .order_by(
+            StaffMember.completed_task_count.desc(),
+            StaffMember.total_assigned_count.desc(),
+            StaffMember.active_task_count.asc(),
+            StaffMember.id.asc(),
+        )
+        .limit(limit)
+        .all()
+    )
+
+    return StaffLeaderboardResponse(
+        pool=normalized_pool,
+        items=[
+            StaffLeaderboardItem(
+                id=row.id,
+                name=row.name,
+                pool=row.pool,
+                completed_task_count=int(row.completed_task_count or 0),
+                total_assigned_count=int(row.total_assigned_count or 0),
+                active_task_count=int(row.active_task_count or 0),
+                is_available=bool(row.is_available),
+            )
+            for row in rows
+        ],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -534,6 +1039,31 @@ async def trigger_checkout(room_number: str, db: Session = Depends(get_db)) -> d
         staff_instruction=f"Room {room_number} checked out. Clean and prepare for next guest immediately.",
     )
     db.add(task)
+    db.flush()
+
+    selected_staff = assign_task_to_staff(
+        db=db,
+        task=task,
+        pool="workers",
+        cooldown_minutes=STAFF_COOLDOWN_MINUTES,
+    )
+
+    db.add(
+        RoutedInstruction(
+            instruction_id=str(uuid4()),
+            queue_name="workers",
+            category="Workers",
+            title="Checkout cleaning",
+            description=task.description,
+            room=room_number,
+            priority="High",
+            response_to_guest="",
+            staff_instruction=task.staff_instruction,
+            status="pending",
+            linked_task_id=task.id,
+        )
+    )
+
     db.commit()
     db.refresh(task)
 
@@ -544,7 +1074,12 @@ async def trigger_checkout(room_number: str, db: Session = Depends(get_db)) -> d
     })
     await manager.broadcast("new_task", _task_dict(task))
 
-    return {"room_number": room_number, "status": "Cleaning Needed", "task_id": task.id}
+    return {
+        "room_number": room_number,
+        "status": "Cleaning Needed",
+        "task_id": task.id,
+        "assigned_staff_id": selected_staff.id if selected_staff else None,
+    }
 
 
 # ---------------------------------------------------------------------------

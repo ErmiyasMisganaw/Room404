@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -34,3 +34,26 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def ensure_additive_schema() -> None:
+    """Apply additive column migrations needed for backward-compatible upgrades."""
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+
+    with engine.begin() as conn:
+        if "tasks" in existing_tables:
+            task_cols = {col["name"] for col in inspector.get_columns("tasks")}
+            if "assigned_staff_id" not in task_cols:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN assigned_staff_id INTEGER"))
+            if "assigned_at" not in task_cols:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN assigned_at TIMESTAMP"))
+            if "completed_at" not in task_cols:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN completed_at TIMESTAMP"))
+
+        if "food_availability" in existing_tables:
+            food_cols = {col["name"] for col in inspector.get_columns("food_availability")}
+            if "version" not in food_cols:
+                conn.execute(text("ALTER TABLE food_availability ADD COLUMN version INTEGER DEFAULT 1"))
+            if "updated_by" not in food_cols:
+                conn.execute(text("ALTER TABLE food_availability ADD COLUMN updated_by VARCHAR DEFAULT 'cafeteria'"))
