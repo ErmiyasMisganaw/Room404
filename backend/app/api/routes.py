@@ -1,14 +1,32 @@
 import json
 import re
+from datetime import datetime, timezone
+from uuid import uuid4
 from typing import Any
 
 import google.generativeai as genai
 from fastapi import APIRouter, HTTPException
 
 from app.core.config import GEMINI_API_KEY, GEMINI_MODEL_NAME
-from app.schemas.schemas import ChatRequest
+from app.schemas.schemas import AIDispatchPayload, ChatRequest, DispatchResponse, QueueResponse, RoutedInstruction
 
 router = APIRouter(prefix="/api", tags=["chat"])
+
+QUEUE_BY_CATEGORY: dict[str, list[RoutedInstruction]] = {
+    "food": [],
+    "maintenance": [],
+    "workers": [],
+    "manager": [],
+    "ignore": [],
+}
+
+CATEGORY_TO_QUEUE = {
+    "Food": "food",
+    "Maintenance": "maintenance",
+    "Workers": "workers",
+    "Manager": "manager",
+    "Ignore": "ignore",
+}
 
 SYSTEM_INSTRUCTIONS = """
 ACT AS: A professional Hotel Operations Agent.
@@ -97,3 +115,72 @@ def chat(request: ChatRequest) -> Any:
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to generate a Gemini response: {exc}") from exc
+
+
+def _build_routed_instruction(payload: AIDispatchPayload) -> RoutedInstruction:
+    queue_name = CATEGORY_TO_QUEUE[payload.category]
+    return RoutedInstruction(
+        instruction_id=f"ins-{uuid4().hex[:12]}",
+        category=payload.category,
+        response_to_guest=payload.response_to_guest,
+        staff_instruction=payload.staff_instruction,
+        priority=payload.priority,
+        target_queue=queue_name,
+        created_at=datetime.now(timezone.utc),
+    )
+
+
+@router.post("/dispatch", response_model=DispatchResponse)
+def receive_ai_dispatch(payload: AIDispatchPayload) -> DispatchResponse:
+    routed_instruction = _build_routed_instruction(payload)
+    QUEUE_BY_CATEGORY[routed_instruction.target_queue].append(routed_instruction)
+
+    if routed_instruction.target_queue == "ignore":
+        return DispatchResponse(
+            accepted=True,
+            message="Instruction was accepted but categorized as Ignore, so no staff action is required.",
+            routed_instruction=routed_instruction,
+        )
+
+    return DispatchResponse(
+        accepted=True,
+        message=f"Instruction routed to {routed_instruction.target_queue} queue.",
+        routed_instruction=routed_instruction,
+    )
+
+
+def _read_queue(queue_name: str, consume: bool) -> QueueResponse:
+    if queue_name not in QUEUE_BY_CATEGORY:
+        raise HTTPException(status_code=404, detail="Queue not found.")
+
+    items = QUEUE_BY_CATEGORY[queue_name]
+    response_items = list(items)
+
+    if consume:
+        QUEUE_BY_CATEGORY[queue_name] = []
+
+    return QueueResponse(
+        queue=queue_name,
+        count=len(response_items),
+        items=response_items,
+    )
+
+
+@router.get("/inbox/food", response_model=QueueResponse)
+def get_food_inbox(consume: bool = False) -> QueueResponse:
+    return _read_queue("food", consume)
+
+
+@router.get("/inbox/maintenance", response_model=QueueResponse)
+def get_maintenance_inbox(consume: bool = False) -> QueueResponse:
+    return _read_queue("maintenance", consume)
+
+
+@router.get("/inbox/workers", response_model=QueueResponse)
+def get_workers_inbox(consume: bool = False) -> QueueResponse:
+    return _read_queue("workers", consume)
+
+
+@router.get("/inbox/manager", response_model=QueueResponse)
+def get_manager_inbox(consume: bool = False) -> QueueResponse:
+    return _read_queue("manager", consume)

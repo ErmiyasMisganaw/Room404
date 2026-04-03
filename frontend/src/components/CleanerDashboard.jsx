@@ -542,7 +542,6 @@ export default function CleanerDashboard() {
 
         <section className="space-y-4">
           <CooldownTimer remainingSeconds={remainingSeconds} isCoolingDown={isCoolingDown} />
-
           <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg">
             <h2 className="mb-4 text-xl font-bold text-gray-900">Assigned Tasks</h2>
             <div className="space-y-3">
