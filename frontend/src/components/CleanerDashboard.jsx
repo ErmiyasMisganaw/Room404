@@ -1,12 +1,5 @@
-<<<<<<< HEAD
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { apiGet, apiPost } from '../services/api';
-=======
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { useWebSocket } from '../hooks/useWebSocket';
-
-const API = 'http://localhost:8000/api';
->>>>>>> df4014dc84d564f79ffcbf2eb63f913cab7b628e
 
 const AuthContext = createContext({
   user: { id: 'CL-104', name: 'Sami T.', role: 'Cleaner', currentStatus: 'Available' },
@@ -54,7 +47,6 @@ function useTasks(cleanerName) {
   const [assignedTasks, setAssignedTasks] = useState(initialAssignedTasks);
   const [availableRooms, setAvailableRooms] = useState(initialAvailableRooms);
 
-<<<<<<< HEAD
   const toRoomNumber = (instructionText, fallbackId) => {
     const matchedNumber = instructionText.match(/\b\d{2,4}\b/);
     return matchedNumber ? matchedNumber[0] : fallbackId.slice(-3);
@@ -116,54 +108,6 @@ function useTasks(cleanerName) {
     return () => {
       window.clearInterval(pollId);
     };
-=======
-  // ETA tick
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setAssignedTasks((prev) => prev.map((t) => ({ ...t, etaMinutes: t.status === 'Completed' ? t.etaMinutes : Math.max(t.etaMinutes - 1, 0) })));
-      setAvailableRooms((prev) => prev.map((r) => ({ ...r, etaMinutes: Math.max(r.etaMinutes - 1, 0) })));
-    }, 6000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  // Simulated room queue feed
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setAvailableRooms((prev) => {
-        if (prev.length > 8) return prev;
-        const roomSuffix = String(100 + Math.floor(Math.random() * 400));
-        return [...prev, {
-          id: `queue-${Date.now()}`,
-          roomNumber: roomSuffix,
-          etaMinutes: 15 + Math.floor(Math.random() * 30),
-          status: 'Pending',
-          assignedCleaners: Math.random() > 0.5 ? ['Mina S.'] : [],
-        }];
-      });
-    }, 22000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const addTaskFromBackend = useCallback((backendTask) => {
-    setAssignedTasks((prev) => {
-      // avoid duplicate
-      if (prev.some((t) => t.backendId === backendTask.id)) return prev;
-      return [{
-        id: `ws-${backendTask.id}`,
-        backendId: backendTask.id,
-        roomNumber: backendTask.room_number,
-        etaMinutes: backendTask.priority === 'High' ? 10 : 20,
-        status: 'Pending',
-        assignedCleaners: [cleanerName],
-        staffInstruction: backendTask.staff_instruction,
-        priority: backendTask.priority,
-      }, ...prev];
-    });
-  }, [cleanerName]);
-
-  const updateBackendTaskStatus = useCallback((backendId, newStatus) => {
-    setAssignedTasks((prev) => prev.map((t) => t.backendId === backendId ? { ...t, status: newStatus } : t));
->>>>>>> df4014dc84d564f79ffcbf2eb63f913cab7b628e
   }, []);
 
   const takeTask = ({ queueTaskId }) => {
@@ -186,7 +130,6 @@ function useTasks(cleanerName) {
     setAssignedTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: nextStatus } : t));
   };
 
-<<<<<<< HEAD
   return {
     assignedTasks,
     availableRooms,
@@ -194,9 +137,6 @@ function useTasks(cleanerName) {
     updateTaskStatus,
     refreshFromBackend,
   };
-=======
-  return { assignedTasks, availableRooms, takeTask, updateTaskStatus, addTaskFromBackend, updateBackendTaskStatus };
->>>>>>> df4014dc84d564f79ffcbf2eb63f913cab7b628e
 }
 
 // ---------------------------------------------------------------------------
@@ -218,16 +158,13 @@ function ToastContainer({ toasts, onDismiss }) {
   );
 }
 
-function Navbar({ cleaner, stats, onLogout, wsConnected }) {
+function Navbar({ cleaner, stats, onLogout }) {
   return (
     <header className="fixed inset-x-0 top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Cleaner Dashboard</h1>
-          <p className="text-sm text-gray-600 flex items-center gap-2">
-            {cleaner.name} • {cleaner.role}
-            <span className={`h-2 w-2 rounded-full ${wsConnected ? 'bg-green-400' : 'bg-gray-300'}`} title={wsConnected ? 'Live' : 'Connecting…'} />
-          </p>
+          <p className="text-sm text-gray-600">{cleaner.name} • {cleaner.role}</p>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <StatCard label="Total Assigned" value={stats.totalAssigned} />
@@ -285,7 +222,7 @@ function StatusBadge({ status }) {
   return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${cls[status] || 'border-gray-200 bg-gray-100 text-gray-700'}`}>{status}</span>;
 }
 
-function TaskCard({ task, isConfirmDisabled, onConfirm, onBackendConfirm, loadingTaskId }) {
+function TaskCard({ task, isConfirmDisabled, onConfirm, loadingTaskId }) {
   const isLoading = loadingTaskId === task.id;
   const isAITask = Boolean(task.backendId);
 
@@ -310,7 +247,7 @@ function TaskCard({ task, isConfirmDisabled, onConfirm, onBackendConfirm, loadin
       <button
         type="button"
         disabled={isConfirmDisabled || task.status === 'Completed' || task.status === 'Done' || isLoading}
-        onClick={() => isAITask ? onBackendConfirm(task) : onConfirm(task)}
+        onClick={() => onConfirm(task)}
         className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
       >
         {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-blue-200" />}
@@ -360,11 +297,7 @@ function AvailableRoomsList({ rooms, selectedTaskId, onSelect, onTakeTask, disab
 
 export default function CleanerDashboard() {
   const { user, logout } = useAuth();
-<<<<<<< HEAD
   const { assignedTasks, availableRooms, takeTask, updateTaskStatus, refreshFromBackend } = useTasks(user.name);
-=======
-  const { assignedTasks, availableRooms, takeTask, updateTaskStatus, addTaskFromBackend, updateBackendTaskStatus } = useTasks(user.name);
->>>>>>> df4014dc84d564f79ffcbf2eb63f913cab7b628e
   const { remainingSeconds, isCoolingDown, startCooldown } = useCooldown(90);
 
   const [isAvailable, setIsAvailable] = useState(true);
@@ -372,20 +305,6 @@ export default function CleanerDashboard() {
   const [loadingTaskId, setLoadingTaskId] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [toasts, setToasts] = useState([]);
-
-  // WebSocket: receive AI-assigned tasks for Workers category
-  const { connected: wsConnected } = useWebSocket(useCallback((event) => {
-    if (event.type === 'new_task' && event.data.category === 'Workers' && isAvailable) {
-      addTaskFromBackend(event.data);
-      pushToast(`New AI task: Room ${event.data.room_number} — ${event.data.staff_instruction}`, 'success');
-    }
-    if (event.type === 'task_updated') {
-      updateBackendTaskStatus(event.data.id, event.data.status);
-    }
-    if (event.type === 'room_checkout' && isAvailable) {
-      pushToast(`Checkout alert: Room ${event.data.room_number} needs cleaning!`, 'error');
-    }
-  }, [isAvailable, addTaskFromBackend, updateBackendTaskStatus]));
 
   const completedToday = useMemo(() => assignedTasks.filter((t) => t.status === 'Completed' || t.status === 'Done').length, [assignedTasks]);
   const stats = useMemo(() => ({ totalAssigned: assignedTasks.length, completedToday }), [assignedTasks.length, completedToday]);
@@ -419,33 +338,24 @@ export default function CleanerDashboard() {
       await new Promise((r) => setTimeout(r, 900));
       if (task.status === 'Pending') {
         updateTaskStatus({ taskId: task.id, nextStatus: 'In Progress' });
-<<<<<<< HEAD
         await apiPost('/api/feedback/task-state', {
           instruction_id: task.id,
-          queue: 'workers',
-          state: 'In Progress',
-          is_complete: false,
-          staff_note: 'Cleaner started the task.',
-          updated_by: user.name,
+          queue_name: 'workers',
+          state: 'in_progress',
+          note: 'Cleaner started the task.',
         });
         pushToast(`Room ${task.roomNumber} moved to In Progress.`, 'success');
-=======
-        pushToast(`Room ${task.roomNumber} → In Progress.`, 'success');
->>>>>>> df4014dc84d564f79ffcbf2eb63f913cab7b628e
       } else if (task.status === 'In Progress') {
         updateTaskStatus({ taskId: task.id, nextStatus: 'Completed' });
         await apiPost('/api/feedback/task-state', {
           instruction_id: task.id,
-          queue: 'workers',
-          state: 'Completed',
-          is_complete: true,
-          staff_note: 'Cleaning task completed.',
-          updated_by: user.name,
+          queue_name: 'workers',
+          state: 'completed',
+          note: 'Cleaning task completed.',
         });
         startCooldown(90);
         pushToast(`Room ${task.roomNumber} completed.`, 'success');
       }
-<<<<<<< HEAD
 
       await refreshFromBackend();
     } catch {
@@ -455,35 +365,13 @@ export default function CleanerDashboard() {
     } finally {
       setLoadingTaskId('');
     }
-=======
-    } catch { pushToast('Could not confirm task.', 'error'); }
-    finally { setLoadingTaskId(''); }
->>>>>>> df4014dc84d564f79ffcbf2eb63f913cab7b628e
-  };
-
-  const handleBackendConfirm = async (task) => {
-    setErrorMessage('');
-    if (isCoolingDown) { pushToast('Disabled during cooldown.', 'error'); return; }
-    try {
-      setLoadingTaskId(task.id);
-      const nextStatus = task.status === 'Pending' ? 'In Progress' : 'Done';
-      await fetch(`${API}/tasks/${task.backendId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: nextStatus }),
-      });
-      updateBackendTaskStatus(task.backendId, nextStatus);
-      if (nextStatus === 'Done') startCooldown(90);
-      pushToast(`Room ${task.roomNumber} → ${nextStatus}.`, 'success');
-    } catch { pushToast('Could not update task.', 'error'); }
-    finally { setLoadingTaskId(''); }
   };
 
   const handleLogout = () => { logout?.(); window.location.href = '/login'; };
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 pb-6 pt-28 font-sans md:px-6">
-      <Navbar cleaner={user} stats={stats} onLogout={handleLogout} wsConnected={wsConnected} />
+      <Navbar cleaner={user} stats={stats} onLogout={handleLogout} />
 
       {/* Profile + Availability */}
       <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-lg">
@@ -524,7 +412,6 @@ export default function CleanerDashboard() {
                   task={task}
                   isConfirmDisabled={isCoolingDown || !isAvailable}
                   onConfirm={handleConfirmTask}
-                  onBackendConfirm={handleBackendConfirm}
                   loadingTaskId={loadingTaskId}
                 />
               ))}
