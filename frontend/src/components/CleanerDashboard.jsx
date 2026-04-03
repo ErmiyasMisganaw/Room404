@@ -1,31 +1,43 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import Sidebar, { Icon } from './Sidebar';
+import { useAuth } from '../context/AuthContext';
 import { apiGet, apiPost } from '../services/api';
 
-const AuthContext = createContext({
-  user: { id: 'CL-104', name: 'Sami T.', role: 'Cleaner', currentStatus: 'Available' },
-  logout: () => {},
-});
+// ── Shared helpers ─────────────────────────────────────────────────────────────
 
-// ---------------------------------------------------------------------------
-// Initial mock data
-// ---------------------------------------------------------------------------
+function Toast({ toasts, onDismiss }) {
+  return (
+    <div className="fixed right-4 top-4 z-50 flex max-w-sm flex-col gap-2">
+      {toasts.map((t) => (
+        <div key={t.id} className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm shadow-xl ${
+          t.type === 'success' ? 'border-[#9bc23c]/40 bg-[#9bc23c]/10 text-[#2d5c10]' : 'border-[#d4186e]/40 bg-[#d4186e]/10 text-[#8a0040]'
+        }`}>
+          <p className="font-medium">{t.message}</p>
+          <button type="button" onClick={() => onDismiss(t.id)} className="text-xs opacity-60 hover:opacity-100">✕</button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-const initialAssignedTasks = [
-  { id: 'task-1', roomNumber: '302', etaMinutes: 20, status: 'In Progress', assignedCleaners: ['Sami T.'], backendId: null },
-  { id: 'task-2', roomNumber: '115', etaMinutes: 35, status: 'Pending',     assignedCleaners: ['Sami T.', 'Helen R.'], backendId: null },
-];
+function PageHeader({ title, subtitle, icon, actions }) {
+  return (
+    <div className="flex items-center justify-between border-b border-[#9bc23c]/20 bg-white/80 px-6 py-4 backdrop-blur-sm sticky top-0 z-10">
+      <div className="flex items-center gap-4">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1d5c28]/10 text-[#1d5c28]">
+          {icon}
+        </div>
+        <div>
+          <h1 className="text-lg font-bold text-[#0d2414]">{title}</h1>
+          {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
+        </div>
+      </div>
+      {actions && <div className="flex items-center gap-2">{actions}</div>}
+    </div>
+  );
+}
 
-const initialAvailableRooms = [
-  { id: 'queue-1', roomNumber: '210', etaMinutes: 25, status: 'Pending', assignedCleaners: [] },
-  { id: 'queue-2', roomNumber: '407', etaMinutes: 40, status: 'Pending', assignedCleaners: ['Jon P.'] },
-  { id: 'queue-3', roomNumber: '126', etaMinutes: 15, status: 'Pending', assignedCleaners: [] },
-];
-
-// ---------------------------------------------------------------------------
-// Hooks
-// ---------------------------------------------------------------------------
-
-function useAuth() { return useContext(AuthContext); }
+// ── Hooks ─────────────────────────────────────────────────────────────────────
 
 function useCooldown(initialSeconds = 90) {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
@@ -43,384 +55,451 @@ function useCooldown(initialSeconds = 90) {
   };
 }
 
+const fallbackAssigned = [
+  { id: 'task-1', roomNumber: '302', etaMinutes: 20, status: 'In Progress', assignedCleaners: ['You'] },
+  { id: 'task-2', roomNumber: '115', etaMinutes: 35, status: 'Pending', assignedCleaners: ['You'] },
+];
+const fallbackQueue = [
+  { id: 'q-1', roomNumber: '210', etaMinutes: 25, status: 'Pending', assignedCleaners: [] },
+  { id: 'q-2', roomNumber: '407', etaMinutes: 40, status: 'Pending', assignedCleaners: [] },
+];
+
 function useTasks(cleanerName) {
-  const [assignedTasks, setAssignedTasks] = useState(initialAssignedTasks);
-  const [availableRooms, setAvailableRooms] = useState(initialAvailableRooms);
+  const [assignedTasks, setAssignedTasks] = useState(fallbackAssigned);
+  const [availableRooms, setAvailableRooms] = useState(fallbackQueue);
 
-  const toRoomNumber = (instructionText, fallbackId) => {
-    const matchedNumber = instructionText.match(/\b\d{2,4}\b/);
-    return matchedNumber ? matchedNumber[0] : fallbackId.slice(-3);
-  };
+  const toRoom = (txt, id) => (txt?.match(/\b\d{2,4}\b/) || [id.slice(-3)])[0];
+  const toEta = (p) => p === 'High' ? 10 : p === 'Medium' ? 20 : 35;
 
-  const toEtaFromPriority = (priority) => {
-    if (priority === 'High') return 10;
-    if (priority === 'Medium') return 20;
-    return 35;
-  };
-
-  const refreshFromBackend = async () => {
+  const refresh = async () => {
     try {
       const [inbox, feedback] = await Promise.all([
         apiGet('/api/inbox/cleaners'),
         apiGet('/api/feedback/task-state/queue/cleaners'),
       ]);
-
-      const feedbackMap = new Map(
-        (feedback.items || []).map((item) => [item.instruction_id, item])
-      );
-
-      const allTasks = (inbox.items || []).map((item) => {
-        const currentFeedback = feedbackMap.get(item.instruction_id);
-        const mappedStatus = currentFeedback?.state || 'Pending';
-
+      const fMap = new Map((feedback.items || []).map((f) => [f.instruction_id, f]));
+      const all = (inbox.items || []).map((item) => {
+        const fb = fMap.get(item.instruction_id);
         return {
           id: item.instruction_id,
-          roomNumber: toRoomNumber(item.staff_instruction, item.instruction_id),
-          etaMinutes: toEtaFromPriority(item.priority),
-          status: mappedStatus,
+          roomNumber: toRoom(item.staff_instruction, item.instruction_id),
+          etaMinutes: toEta(item.priority),
+          status: fb?.state || 'Pending',
           assignedCleaners: [cleanerName],
           rawInstruction: item.staff_instruction,
+          priority: item.priority,
         };
       });
-
-      setAssignedTasks(allTasks.filter((task) => task.status !== 'Pending'));
-      setAvailableRooms(
-        allTasks
-          .filter((task) => task.status === 'Pending')
-          .map((task) => ({
-            id: task.id,
-            roomNumber: task.roomNumber,
-            etaMinutes: task.etaMinutes,
-            status: task.status,
-            assignedCleaners: [],
-          }))
-      );
+      setAssignedTasks(all.filter((t) => t.status !== 'Pending'));
+      setAvailableRooms(all.filter((t) => t.status === 'Pending').map((t) => ({ ...t, assignedCleaners: [] })));
     } catch {
-      setAssignedTasks(initialAssignedTasks);
-      setAvailableRooms(initialAvailableRooms);
+      /* keep fallback */
     }
   };
 
-  useEffect(() => {
-    refreshFromBackend();
-    const pollId = window.setInterval(refreshFromBackend, 15000);
+  useEffect(() => { refresh(); const id = setInterval(refresh, 15000); return () => clearInterval(id); }, []);
 
-    return () => {
-      window.clearInterval(pollId);
-    };
-  }, []);
-
-  const takeTask = ({ queueTaskId }) => {
+  const takeTask = (queueTaskId) => {
     setAvailableRooms((prev) => {
       const room = prev.find((r) => r.id === queueTaskId);
       if (!room) return prev;
-      setAssignedTasks((tasks) => [...tasks, {
-        id: `task-${room.id}`,
-        backendId: null,
-        roomNumber: room.roomNumber,
-        etaMinutes: room.etaMinutes,
-        status: 'Pending',
-        assignedCleaners: [...room.assignedCleaners, cleanerName],
-      }]);
+      setAssignedTasks((t) => [...t, { ...room, status: 'Pending', assignedCleaners: [cleanerName] }]);
       return prev.filter((r) => r.id !== queueTaskId);
     });
   };
 
-  const updateTaskStatus = ({ taskId, nextStatus }) => {
+  const updateStatus = (taskId, nextStatus) => {
     setAssignedTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: nextStatus } : t));
   };
 
-  return {
-    assignedTasks,
-    availableRooms,
-    takeTask,
-    updateTaskStatus,
-    refreshFromBackend,
-  };
+  return { assignedTasks, availableRooms, takeTask, updateStatus, refresh };
 }
 
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-function ToastContainer({ toasts, onDismiss }) {
-  return (
-    <div className="fixed right-4 top-20 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2">
-      {toasts.map((t) => (
-        <div key={t.id} className={`rounded-xl border px-4 py-3 text-sm shadow-lg ${t.type === 'success' ? 'border-green-200 bg-green-50 text-green-700' : 'border-orange-200 bg-orange-50 text-orange-700'}`}>
-          <div className="flex items-center justify-between gap-3">
-            <p className="font-medium">{t.message}</p>
-            <button type="button" onClick={() => onDismiss(t.id)} className="text-xs font-semibold text-gray-600 transition hover:text-gray-900">Dismiss</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Navbar({ cleaner, stats, onLogout }) {
-  return (
-    <header className="fixed inset-x-0 top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Cleaner Dashboard</h1>
-          <p className="text-sm text-gray-600">{cleaner.name} • {cleaner.role}</p>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <StatCard label="Total Assigned" value={stats.totalAssigned} />
-          <StatCard label="Completed Today" value={stats.completedToday} />
-        </div>
-        <button type="button" onClick={onLogout} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-500">Logout</button>
-      </div>
-    </header>
-  );
-}
-
-function StatCard({ label, value }) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-center shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
-      <p className="text-lg font-bold text-gray-900">{value}</p>
-    </div>
-  );
-}
-
-function AvailabilityToggle({ isAvailable, onToggle }) {
-  return (
-    <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-lg">
-      <div>
-        <p className="text-sm font-bold text-gray-900">Availability Status</p>
-        <p className="text-xs text-gray-500 mt-0.5">Toggle off when on break — AI won't assign new tasks.</p>
-      </div>
-      <button
-        type="button"
-        onClick={onToggle}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isAvailable ? 'bg-green-500' : 'bg-gray-300'}`}
-      >
-        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${isAvailable ? 'translate-x-6' : 'translate-x-1'}`} />
-      </button>
-    </div>
-  );
-}
-
-function CooldownTimer({ remainingSeconds, isCoolingDown }) {
-  const m = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
-  const s = String(remainingSeconds % 60).padStart(2, '0');
-  return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-lg">
-      <h2 className="text-lg font-bold text-gray-900">Task Cooldown</h2>
-      <p className={`mt-2 text-2xl font-bold ${isCoolingDown ? 'text-orange-500' : 'text-green-500'}`}>
-        {isCoolingDown ? `${m}:${s}` : 'Ready'}
-      </p>
-      <p className="mt-1 text-sm text-gray-600">{isCoolingDown ? 'Wait before taking new work.' : 'You can take or confirm tasks.'}</p>
-    </section>
-  );
-}
+// ── Status Badge ──────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }) {
-  const cls = { Completed: 'border-green-200 bg-green-100 text-green-700', 'In Progress': 'border-yellow-200 bg-yellow-100 text-yellow-700', Pending: 'border-orange-200 bg-orange-100 text-orange-700' };
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${cls[status] || 'border-gray-200 bg-gray-100 text-gray-700'}`}>{status}</span>;
+  const cfg = {
+    Completed:   'bg-[#1d5c28]/5 border-[#1d5c28]/20 text-[#1d5c28]',
+    'In Progress':'bg-[#9bc23c]/10 border-[#9bc23c]/30 text-[#3a6e10]',
+    Pending:     'bg-amber-50 border-amber-200 text-amber-700',
+    completed:   'bg-[#1d5c28]/5 border-[#1d5c28]/20 text-[#1d5c28]',
+    in_progress: 'bg-[#9bc23c]/10 border-[#9bc23c]/30 text-[#3a6e10]',
+    pending:     'bg-amber-50 border-amber-200 text-amber-700',
+  };
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${cfg[status] || 'bg-gray-100 border-gray-200 text-gray-600'}`}>
+      {status}
+    </span>
+  );
 }
 
-function TaskCard({ task, isConfirmDisabled, onConfirm, loadingTaskId }) {
-  const isLoading = loadingTaskId === task.id;
-  const isAITask = Boolean(task.backendId);
+// ── My Tasks Section ──────────────────────────────────────────────────────────
+
+function TaskCard({ task, disabled, onConfirm, loadingId }) {
+  const isLoading = loadingId === task.id;
+  const isDone = task.status === 'Completed' || task.status === 'completed' || task.status === 'Done';
+  const nextLabel = task.status === 'Pending' || task.status === 'pending' ? 'Start Task' : isDone ? 'Completed' : 'Mark Complete';
+
+  const priorityColor = { High: 'text-[#d4186e]', Medium: 'text-amber-600', Low: 'text-gray-500' };
 
   return (
-    <article className={`rounded-xl border p-4 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl ${isAITask ? 'border-violet-200 bg-violet-50' : 'border-gray-200 bg-white'}`}>
-      <div className="flex items-start justify-between gap-3">
+    <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5 shadow-sm transition hover:shadow-md">
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <p className="text-sm text-gray-500 flex items-center gap-1">
-            Room
-            {isAITask && <span className="rounded-full bg-violet-200 px-1.5 py-0.5 text-xs font-bold text-violet-700">AI</span>}
-          </p>
-          <p className="text-lg font-semibold text-gray-900">#{task.roomNumber}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Room</p>
+          <p className="text-2xl font-extrabold text-[#0d2414]">#{task.roomNumber}</p>
         </div>
         <StatusBadge status={task.status} />
       </div>
-      <div className="mt-3 space-y-1 text-sm text-gray-700">
-        <p><span className="font-semibold">ETA:</span> {task.etaMinutes} min</p>
-        {task.priority && <p><span className="font-semibold">Priority:</span> {task.priority}</p>}
-        {task.staffInstruction && <p><span className="font-semibold">Instructions:</span> {task.staffInstruction}</p>}
-        <p><span className="font-semibold">Assigned:</span> {task.assignedCleaners?.join(', ') || 'You'}</p>
+
+      <div className="grid grid-cols-2 gap-2 mb-4 text-sm">
+        <div className="rounded-lg bg-[#f4f6ed] px-3 py-2">
+          <p className="text-xs text-gray-500">ETA</p>
+          <p className="font-semibold text-gray-800">{task.etaMinutes} min</p>
+        </div>
+        {task.priority && (
+          <div className="rounded-lg bg-[#f4f6ed] px-3 py-2">
+            <p className="text-xs text-gray-500">Priority</p>
+            <p className={`font-semibold ${priorityColor[task.priority] || 'text-gray-800'}`}>{task.priority}</p>
+          </div>
+        )}
       </div>
+
+      {task.rawInstruction && (
+        <p className="mb-4 rounded-lg bg-[#f4f6ed] px-3 py-2 text-xs text-gray-600 leading-relaxed">{task.rawInstruction}</p>
+      )}
+
       <button
         type="button"
-        disabled={isConfirmDisabled || task.status === 'Completed' || task.status === 'Done' || isLoading}
+        disabled={disabled || isDone || isLoading}
         onClick={() => onConfirm(task)}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
+        className={`flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition ${
+          isDone
+            ? 'bg-[#1d5c28]/5 text-[#1d5c28] cursor-default'
+            : 'bg-[#1d5c28] text-white shadow-lg shadow-[#1d5c28]/20 hover:bg-[#2d7a3a] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0'
+        }`}
       >
-        {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-blue-200" />}
-        {task.status === 'Completed' || task.status === 'Done' ? 'Completed' : 'Confirm Task'}
+        {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
+        {nextLabel}
       </button>
-    </article>
+    </div>
   );
 }
 
-function AvailableRoomsList({ rooms, selectedTaskId, onSelect, onTakeTask, disabled, loadingTaskId }) {
-  return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg">
-      <h2 className="mb-4 text-xl font-bold text-gray-900">Available Rooms Queue</h2>
-      <div className="space-y-3">
-        {rooms.length === 0 && <div className="rounded-lg border border-dashed border-gray-300 px-3 py-5 text-center text-sm text-gray-500">No rooms waiting.</div>}
-        {rooms.map((room) => {
-          const isSelected = selectedTaskId === room.id;
-          const isLoading = loadingTaskId === room.id;
-          return (
-            <article key={room.id} className={`rounded-xl border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${isSelected ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white hover:border-blue-200'}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div><p className="text-sm text-gray-500">Room</p><p className="text-lg font-semibold text-gray-900">#{room.roomNumber}</p></div>
-                <StatusBadge status={room.status} />
-              </div>
-              <div className="mt-3 space-y-1 text-sm text-gray-700">
-                <p><span className="font-semibold">ETA:</span> {room.etaMinutes} min</p>
-                <p><span className="font-semibold">Others:</span> {room.assignedCleaners?.join(', ') || 'None'}</p>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => onSelect(room.id)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">{isSelected ? 'Selected' : 'Select'}</button>
-                <button type="button" disabled={disabled || isLoading} onClick={() => onTakeTask(room.id)} className="flex items-center justify-center gap-2 rounded-lg bg-green-500 px-3 py-2.5 text-sm font-semibold text-white shadow-lg shadow-green-100 transition hover:-translate-y-0.5 hover:bg-green-400 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none">
-                  {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-green-200" />}
-                  Assign to Me
-                </button>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
-export default function CleanerDashboard() {
-  const { user, logout } = useAuth();
-  const { assignedTasks, availableRooms, takeTask, updateTaskStatus, refreshFromBackend } = useTasks(user.name);
+function MyTasksSection({ user }) {
+  const { assignedTasks, updateStatus, refresh } = useTasks(user?.name || 'You');
   const { remainingSeconds, isCoolingDown, startCooldown } = useCooldown(90);
-
-  const [isAvailable, setIsAvailable] = useState(true);
-  const [selectedTaskId, setSelectedTaskId] = useState('');
-  const [loadingTaskId, setLoadingTaskId] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [loadingId, setLoadingId] = useState('');
   const [toasts, setToasts] = useState([]);
 
-  const completedToday = useMemo(() => assignedTasks.filter((t) => t.status === 'Completed' || t.status === 'Done').length, [assignedTasks]);
-  const stats = useMemo(() => ({ totalAssigned: assignedTasks.length, completedToday }), [assignedTasks.length, completedToday]);
-
-  const pushToast = (message, type = 'success') => {
-    const id = Date.now() + Math.floor(Math.random() * 1000);
-    setToasts((prev) => [...prev, { id, message, type }]);
-    window.setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
-  };
-  const dismissToast = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
-
-  const handleTakeTask = async (queueTaskId) => {
-    setErrorMessage('');
-    if (isCoolingDown) { pushToast('Cooldown active.', 'error'); return; }
-    if (!isAvailable) { pushToast('Set yourself as Available first.', 'error'); return; }
-    try {
-      setLoadingTaskId(queueTaskId);
-      await new Promise((r) => setTimeout(r, 850));
-      takeTask({ queueTaskId });
-      setSelectedTaskId('');
-      pushToast('Task assigned to you.', 'success');
-    } catch { pushToast('Failed to assign task.', 'error'); }
-    finally { setLoadingTaskId(''); }
+  const pushToast = (msg, type = 'success') => {
+    const id = Date.now() + Math.random();
+    setToasts((p) => [...p, { id, msg, type }]);
+    setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 4000);
   };
 
-  const handleConfirmTask = async (task) => {
-    setErrorMessage('');
-    if (isCoolingDown) { pushToast('Disabled during cooldown.', 'error'); return; }
-    try {
-      setLoadingTaskId(task.id);
-      await new Promise((r) => setTimeout(r, 900));
-      if (task.status === 'Pending') {
-        updateTaskStatus({ taskId: task.id, nextStatus: 'In Progress' });
-        await apiPost('/api/feedback/task-state', {
-          instruction_id: task.id,
-          queue_name: 'cleaners',
-          state: 'in_progress',
-          note: 'Cleaner started the task.',
-        });
-        pushToast(`Room ${task.roomNumber} moved to In Progress.`, 'success');
-      } else if (task.status === 'In Progress') {
-        updateTaskStatus({ taskId: task.id, nextStatus: 'Completed' });
-        await apiPost('/api/feedback/task-state', {
-          instruction_id: task.id,
-          queue_name: 'cleaners',
-          state: 'completed',
-          note: 'Cleaning task completed.',
-        });
-        startCooldown(90);
-        pushToast(`Room ${task.roomNumber} completed.`, 'success');
-      }
+  const mm = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
+  const ss = String(remainingSeconds % 60).padStart(2, '0');
 
-      await refreshFromBackend();
+  const handleConfirm = async (task) => {
+    if (isCoolingDown) { pushToast('Cooldown active — please wait.', 'error'); return; }
+    try {
+      setLoadingId(task.id);
+      const isPending = task.status === 'Pending' || task.status === 'pending';
+      const nextState = isPending ? 'in_progress' : 'completed';
+      const nextDisplay = isPending ? 'In Progress' : 'Completed';
+
+      await apiPost('/api/feedback/task-state', {
+        instruction_id: task.id,
+        queue_name: 'cleaners',
+        state: nextState,
+        note: isPending ? 'Cleaner started task.' : 'Cleaning task completed.',
+      });
+
+      updateStatus(task.id, nextDisplay);
+      if (!isPending) startCooldown(90);
+      pushToast(`Room ${task.roomNumber} → ${nextDisplay}`, 'success');
+      await refresh();
     } catch {
-      const message = 'Could not confirm task. Try again.';
-      setErrorMessage(message);
-      pushToast(message, 'error');
+      pushToast('Could not update task. Try again.', 'error');
     } finally {
-      setLoadingTaskId('');
+      setLoadingId('');
     }
   };
+
+  return (
+    <div>
+      <PageHeader
+        title="My Tasks"
+        subtitle={`${assignedTasks.length} assigned task${assignedTasks.length !== 1 ? 's' : ''}`}
+        icon={Icon.tasks}
+        actions={
+          <button onClick={refresh} className="rounded-lg border border-[#9bc23c]/40 px-3 py-1.5 text-xs font-medium text-[#1d5c28] hover:bg-[#9bc23c]/10 transition">
+            Refresh
+          </button>
+        }
+      />
+      <div className="p-6">
+        {/* Cooldown banner */}
+        {isCoolingDown && (
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <span className="text-amber-500">⏱️</span>
+            <p className="text-sm font-medium text-amber-700">Cooldown active: <span className="font-bold">{mm}:{ss}</span> remaining before next task.</p>
+          </div>
+        )}
+
+        {assignedTasks.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[#9bc23c]/40 bg-white py-16 text-center">
+            <p className="text-4xl mb-3">🧹</p>
+            <p className="font-semibold text-gray-700">No assigned tasks</p>
+            <p className="mt-1 text-sm text-gray-500">Check the Room Queue for available tasks.</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {assignedTasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                disabled={isCoolingDown}
+                onConfirm={handleConfirm}
+                loadingId={loadingId}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+      <Toast toasts={toasts} onDismiss={(id) => setToasts((p) => p.filter((t) => t.id !== id))} />
+    </div>
+  );
+}
+
+// ── Room Queue Section ────────────────────────────────────────────────────────
+
+function QueueSection({ user }) {
+  const { availableRooms, takeTask, refresh } = useTasks(user?.name || 'You');
+  const [loadingId, setLoadingId] = useState('');
+  const [toasts, setToasts] = useState([]);
+
+  const pushToast = (msg, type = 'success') => {
+    const id = Date.now() + Math.random();
+    setToasts((p) => [...p, { id, msg, type }]);
+    setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 4000);
+  };
+
+  const handleTake = async (roomId) => {
+    try {
+      setLoadingId(roomId);
+      await new Promise((r) => setTimeout(r, 700));
+      takeTask(roomId);
+      pushToast('Task assigned to you.', 'success');
+    } catch {
+      pushToast('Failed to assign task.', 'error');
+    } finally {
+      setLoadingId('');
+    }
+  };
+
+  return (
+    <div>
+      <PageHeader
+        title="Room Queue"
+        subtitle="Available rooms awaiting housekeeping"
+        icon={Icon.queue}
+        actions={
+          <button onClick={refresh} className="rounded-lg border border-[#9bc23c]/40 px-3 py-1.5 text-xs font-medium text-[#1d5c28] hover:bg-[#9bc23c]/10 transition">
+            Refresh
+          </button>
+        }
+      />
+      <div className="p-6">
+        {availableRooms.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[#9bc23c]/40 bg-white py-16 text-center">
+            <p className="text-4xl mb-3">✅</p>
+            <p className="font-semibold text-gray-700">Queue is clear</p>
+            <p className="mt-1 text-sm text-gray-500">All rooms have been attended to.</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {availableRooms.map((room) => {
+              const isLoading = loadingId === room.id;
+              return (
+                <div key={room.id} className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5 shadow-sm hover:shadow-md transition">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Room</p>
+                      <p className="text-2xl font-extrabold text-[#0d2414]">#{room.roomNumber}</p>
+                    </div>
+                    <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                      Available
+                    </span>
+                  </div>
+                  <div className="rounded-lg bg-[#f4f6ed] px-3 py-2 mb-4 text-sm">
+                    <p className="text-xs text-gray-500">Est. Time</p>
+                    <p className="font-semibold text-gray-800">{room.etaMinutes} min</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isLoading}
+                    onClick={() => handleTake(room.id)}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#9bc23c] py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#9bc23c]/20 hover:bg-[#8ab030] hover:-translate-y-0.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
+                    {isLoading ? 'Assigning…' : 'Take This Room'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <Toast toasts={toasts} onDismiss={(id) => setToasts((p) => p.filter((t) => t.id !== id))} />
+    </div>
+  );
+}
+
+// ── Analytics Section ─────────────────────────────────────────────────────────
+
+function AnalyticsSection({ user }) {
+  const { assignedTasks } = useTasks(user?.name || 'You');
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [leaderboard, setLeaderboard] = useState([]);
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const [analytics, lb] = await Promise.all([
+          apiGet('/api/analytics').catch(() => null),
+          apiGet('/api/staff/leaderboard').catch(() => []),
+        ]);
+        setAnalyticsData(analytics);
+        setLeaderboard(Array.isArray(lb) ? lb : lb?.staff || []);
+      } catch { /* silent */ }
+    };
+    fetch();
+    const id = setInterval(fetch, 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const completed = assignedTasks.filter((t) => t.status === 'Completed' || t.status === 'completed').length;
+  const inProgress = assignedTasks.filter((t) => t.status === 'In Progress' || t.status === 'in_progress').length;
+  const pending = assignedTasks.filter((t) => t.status === 'Pending' || t.status === 'pending').length;
+  const total = assignedTasks.length;
+  const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  return (
+    <div>
+      <PageHeader title="Analytics" subtitle="Your performance & hotel overview" icon={Icon.analytics} />
+      <div className="p-6 space-y-6">
+        {/* Personal stats */}
+        <div>
+          <h2 className="mb-3 text-sm font-bold text-[#0d2414]">My Performance</h2>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {[
+              { label: 'Total Assigned', value: total, color: 'bg-[#1d5c28]/5 border-[#1d5c28]/20', text: 'text-[#1d5c28]' },
+              { label: 'Completed', value: completed, color: 'bg-[#9bc23c]/10 border-[#9bc23c]/30', text: 'text-[#3a6e10]' },
+              { label: 'In Progress', value: inProgress, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+              { label: 'Completion Rate', value: `${rate}%`, color: 'bg-[#d4186e]/5 border-[#d4186e]/20', text: 'text-[#d4186e]' },
+            ].map((card) => (
+              <div key={card.label} className={`rounded-2xl border p-5 ${card.color}`}>
+                <p className={`text-2xl font-extrabold ${card.text}`}>{card.value}</p>
+                <p className="mt-1 text-xs font-semibold text-gray-500">{card.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Completion bar */}
+        {total > 0 && (
+          <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-[#0d2414]">Overall Completion</p>
+              <p className="text-sm font-bold text-[#1d5c28]">{rate}%</p>
+            </div>
+            <div className="h-3 overflow-hidden rounded-full bg-[#f4f6ed]">
+              <div className="h-3 rounded-full bg-gradient-to-r from-[#2d7a3a] to-[#9bc23c] transition-all duration-700"
+                style={{ width: `${rate}%` }} />
+            </div>
+            <div className="mt-2 flex gap-4 text-xs text-gray-500">
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#9bc23c]" />Completed: {completed}</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />Pending: {pending}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Staff leaderboard */}
+        {leaderboard.length > 0 && (
+          <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5">
+            <h3 className="mb-4 text-sm font-bold text-[#0d2414]">Staff Leaderboard</h3>
+            <div className="space-y-2">
+              {leaderboard.slice(0, 5).map((staff, i) => (
+                <div key={staff.id || i} className="flex items-center gap-3 rounded-xl bg-[#f4f6ed] px-4 py-3">
+                  <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
+                    i === 0 ? 'bg-[#c9b44a] text-white' : i === 1 ? 'bg-gray-400 text-white' : i === 2 ? 'bg-[#c4845a] text-white' : 'bg-gray-200 text-gray-600'
+                  }`}>{i + 1}</span>
+                  <p className="flex-1 text-sm font-semibold text-gray-800">{staff.name}</p>
+                  <div className="text-right">
+                    <p className="text-xs font-bold text-[#1d5c28]">{staff.completed_task_count ?? staff.completed ?? 0} done</p>
+                    <p className="text-[10px] text-gray-400">{staff.pool || 'cleaners'}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {analyticsData && (
+          <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5">
+            <h3 className="mb-4 text-sm font-bold text-[#0d2414]">Hotel Overview</h3>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
+                <p className="text-xl font-bold text-[#1d5c28]">{analyticsData.total_tasks ?? '—'}</p>
+                <p className="text-xs text-gray-500">Total Tasks</p>
+              </div>
+              <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
+                <p className="text-xl font-bold text-[#3a6e10]">{analyticsData.occupancy_rate != null ? `${analyticsData.occupancy_rate}%` : '—'}</p>
+                <p className="text-xs text-gray-500">Occupancy</p>
+              </div>
+              <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
+                <p className="text-xl font-bold text-amber-600">{analyticsData.cleaning_needed ?? '—'}</p>
+                <p className="text-xs text-gray-500">Need Cleaning</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
+const NAV = [
+  { key: 'tasks',     label: 'My Tasks',    icon: Icon.tasks },
+  { key: 'queue',     label: 'Room Queue',  icon: Icon.queue },
+  { key: 'analytics', label: 'Analytics',   icon: Icon.analytics },
+];
+
+export default function CleanerDashboard() {
+  const { user: authUser, logout } = useAuth();
+  const user = authUser || { id: 'CL-001', name: 'Housekeeper', role: 'cleaner' };
+  const [activeSection, setActiveSection] = useState('tasks');
 
   const handleLogout = () => { logout?.(); window.location.href = '/login'; };
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 pb-6 pt-28 font-sans md:px-6">
-      <Navbar cleaner={user} stats={stats} onLogout={handleLogout} />
-
-      {/* Profile + Availability */}
-      <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-lg">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="grid grid-cols-1 gap-2 text-sm text-gray-700 sm:grid-cols-3">
-            <p><span className="font-semibold">Name:</span> {user.name}</p>
-            <p><span className="font-semibold">ID:</span> {user.id}</p>
-            <p><span className="font-semibold">Status:</span> <span className={isAvailable ? 'text-green-600 font-semibold' : 'text-gray-400 font-semibold'}>{isAvailable ? 'Available' : 'On Break'}</span></p>
-          </div>
-        </div>
-      </section>
-
-      <AvailabilityToggle isAvailable={isAvailable} onToggle={() => setIsAvailable((v) => !v)} />
-
-      <div className="mt-4" />
-
-      {errorMessage && <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">{errorMessage}</div>}
-
-      <main className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <AvailableRoomsList
-          rooms={availableRooms}
-          selectedTaskId={selectedTaskId}
-          onSelect={setSelectedTaskId}
-          onTakeTask={handleTakeTask}
-          disabled={isCoolingDown || !isAvailable}
-          loadingTaskId={loadingTaskId}
-        />
-
-        <section className="space-y-4">
-          <CooldownTimer remainingSeconds={remainingSeconds} isCoolingDown={isCoolingDown} />
-          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-lg">
-            <h2 className="mb-4 text-xl font-bold text-gray-900">Assigned Tasks</h2>
-            <div className="space-y-3">
-              {assignedTasks.length === 0 && <div className="rounded-lg border border-dashed border-gray-300 px-3 py-5 text-center text-sm text-gray-500">No tasks assigned yet.</div>}
-              {assignedTasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  isConfirmDisabled={isCoolingDown || !isAvailable}
-                  onConfirm={handleConfirmTask}
-                  loadingTaskId={loadingTaskId}
-                />
-              ))}
-            </div>
-          </section>
-        </section>
+    <div className="flex min-h-screen" style={{ backgroundColor: '#f4f6ed' }}>
+      <Sidebar
+        navItems={NAV}
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+        user={user}
+        onLogout={handleLogout}
+      />
+      <main className="flex-1 lg:ml-64 min-h-screen">
+        {activeSection === 'tasks'     && <MyTasksSection user={user} />}
+        {activeSection === 'queue'     && <QueueSection user={user} />}
+        {activeSection === 'analytics' && <AnalyticsSection user={user} />}
       </main>
-
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

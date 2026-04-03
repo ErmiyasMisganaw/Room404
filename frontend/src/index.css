@@ -1,7 +1,46 @@
 @import "tailwindcss";
 
+@theme {
+  /* Kuriftu Forest Green scale */
+  --color-ku-950: #0d2414;
+  --color-ku-900: #163620;
+  --color-ku-800: #1d5c28;
+  --color-ku-700: #2d7a3a;
+  --color-ku-600: #3d9648;
+  --color-ku-500: #52ae5e;
+  --color-ku-400: #70c47a;
+  --color-ku-300: #96d49e;
+  --color-ku-200: #bee8c4;
+  --color-ku-100: #ddf3e0;
+  --color-ku-50: #f0faf2;
+
+  /* Kuriftu Lime (inner oval) */
+  --color-lime-ku: #9bc23c;
+  --color-lime-ku-light: #b4d655;
+  --color-lime-ku-pale: #e8f5c8;
+
+  /* Kuriftu Hot Pink (dress accent) */
+  --color-pink-ku: #d4186e;
+  --color-pink-ku-light: #e8429a;
+  --color-pink-ku-pale: #fce8f3;
+
+  /* Kuriftu Gold */
+  --color-gold-ku: #c9b44a;
+  --color-gold-ku-light: #deca6e;
+  --color-gold-ku-pale: #faf3d0;
+
+  /* Kuriftu Earth / Warm Tan */
+  --color-earth-ku: #c4845a;
+  --color-earth-ku-pale: #faeee4;
+
+  /* Kuriftu Cream background */
+  --color-cream-ku: #f4f6ed;
+  --color-cream-ku-dark: #e8edd8;
+}
+
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
+    'Apple Color Emoji', 'Segoe UI Emoji';
 }
 
 * {
@@ -11,6 +50,30 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #f9fafb;
+  background-color: #f4f6ed;
   color: #111827;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f0faf2;
+}
+::-webkit-scrollbar-thumb {
+  background: #96d49e;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #52ae5e;
+}
+
+/* Sidebar scrollbar */
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: #163620;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #2d7a3a;
 }
