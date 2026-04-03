@@ -3,3 +3,4 @@ starlette==0.48.0
 uvicorn[standard]>=0.30.0
 google-generativeai>=0.8.0
 pydantic>=2.7.0
+sqlalchemy>=2.0.0

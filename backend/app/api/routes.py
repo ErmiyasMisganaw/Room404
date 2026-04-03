@@ -1,13 +1,18 @@
 import json
 import re
 from datetime import datetime, timezone
+<<<<<<< HEAD
 from uuid import uuid4
+=======
+>>>>>>> df4014dc84d564f79ffcbf2eb63f913cab7b628e
 from typing import Any
 
 import google.generativeai as genai
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from sqlalchemy.orm import Session
 
 from app.core.config import GEMINI_API_KEY, GEMINI_MODEL_NAME
+<<<<<<< HEAD
 from app.schemas.schemas import (
     AIDispatchPayload,
     CafeteriaTaskCompletionPayload,
@@ -23,8 +28,49 @@ from app.schemas.schemas import (
     TaskFeedbackRecord,
     TaskFeedbackResponse,
 )
+=======
+from app.db.database import get_db
+from app.models.models import Room, Task
+from app.schemas.schemas import ChatRequest, RoomOut, TaskOut, TaskStatusUpdate
+>>>>>>> df4014dc84d564f79ffcbf2eb63f913cab7b628e
 
-router = APIRouter(prefix="/api", tags=["chat"])
+router = APIRouter(prefix="/api", tags=["api"])
+
+
+# ---------------------------------------------------------------------------
+# WebSocket connection manager
+# ---------------------------------------------------------------------------
+
+class ConnectionManager:
+    def __init__(self) -> None:
+        self.active: list[WebSocket] = []
+
+    async def connect(self, ws: WebSocket) -> None:
+        await ws.accept()
+        self.active.append(ws)
+
+    def disconnect(self, ws: WebSocket) -> None:
+        if ws in self.active:
+            self.active.remove(ws)
+
+    async def broadcast(self, event_type: str, data: dict) -> None:
+        payload = json.dumps({"type": event_type, "data": data})
+        dead: list[WebSocket] = []
+        for ws in self.active:
+            try:
+                await ws.send_text(payload)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect(ws)
+
+
+manager = ConnectionManager()
+
+
+# ---------------------------------------------------------------------------
+# Gemini AI setup
+# ---------------------------------------------------------------------------
 
 QUEUE_BY_CATEGORY: dict[str, list[RoutedInstruction]] = {
     "food": [],
@@ -69,7 +115,7 @@ FOOD_AVAILABILITY_BY_ITEM: dict[str, FoodAvailabilityItem] = {
 }
 
 SYSTEM_INSTRUCTIONS = """
-ACT AS: A professional Hotel Operations Agent.
+ACT AS: A professional Hotel Operations Agent for Kuriftu Resort.
 
 KNOWLEDGE SOURCE:
 HOTEL NAME: Kuriftu Resort
@@ -85,7 +131,7 @@ WORKERS / HOUSEKEEPING REQUESTS:
 - Extra pillows, Towels, Toothbrush kit, Ironing board, Room cleaning, Luggage help.
 
 MANAGER ESCALATION:
-- Complaints about staff, Refund requests, Overbilling, Room upgrades, Security concerns, Any relavant Information about the Hotel that's not Avaliable.
+- Complaints about staff, Refund requests, Overbilling, Room upgrades, Security concerns.
 
 GENERAL POLICY:
 - Check-in: 3pm. Check-out: 11am.
@@ -93,24 +139,22 @@ GENERAL POLICY:
 - Gym: 24 hours with room key.
 
 STRICT RULES:
-1. Answer questions using the KNOWLEDGE SOURCE above and any question related to this hotel only.
-2. If the guest asks about something unrelated to Kuriftu Resort, reply exactly: "I am sorry, I can only assist with requests related to Kuriftu Resort."
-3. Classify every input into one of these categories:
-   - "Food": For orders or menu questions.
-   - "Maintenance": For things that are broken.
-   - "Workers": For housekeeping/item requests (pillows, towels).
-   - "Manager": For complaints or any high-priority hotel issue.
-   - "Ignore": For irrelevant things that do not need action.
+1. Answer ONLY questions related to Kuriftu Resort.
+2. If unrelated, reply: "I am sorry, I can only assist with requests related to Kuriftu Resort."
+3. Classify every input:
+   - "Food": Food orders or menu questions.
+   - "Maintenance": Broken/malfunctioning items.
+   - "Workers": Housekeeping or item requests (pillows, towels).
+   - "Manager": Complaints, refunds, upgrades, security.
+   - "Ignore": Irrelevant or already handled.
 
-OUTPUT FORMAT:
-If the category is Manager, always ask the guest if they want the manager. Do not send anything to staff until the guest confirms.
-Return only valid JSON.
+OUTPUT FORMAT: Return ONLY valid JSON. No markdown.
 
 JSON SCHEMA:
 {
   "category": "Food | Maintenance | Workers | Manager | Ignore",
-  "response_to_guest": "Write a polite reply here",
-  "staff_instruction": "Write the exact instruction with the quantity",
+  "response_to_guest": "Warm, professional reply for the guest",
+  "staff_instruction": "Exact instruction with item and quantity for staff",
   "priority": "Low | Medium | High"
 }
 """.strip()
@@ -119,41 +163,97 @@ if not GEMINI_API_KEY:
     raise RuntimeError("GEMINI_API_KEY is not configured.")
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel(GEMINI_MODEL_NAME, system_instruction=SYSTEM_INSTRUCTIONS)
+_gemini = genai.GenerativeModel(GEMINI_MODEL_NAME, system_instruction=SYSTEM_INSTRUCTIONS)
 
 
-def _extract_json_payload(text: str) -> Any:
-    cleaned_text = text.strip()
-
-    if cleaned_text.startswith("```"):
-        cleaned_text = re.sub(r"^```(?:json)?\s*", "", cleaned_text, flags=re.IGNORECASE).strip()
-        if cleaned_text.endswith("```"):
-            cleaned_text = cleaned_text[:-3].strip()
-
+def _parse_json(text: str) -> Any:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE).strip()
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3].strip()
     try:
-        return json.loads(cleaned_text)
+        return json.loads(cleaned)
     except json.JSONDecodeError:
-        match = re.search(r"\{[\s\S]*\}|\[[\s\S]*\]", cleaned_text)
+        match = re.search(r"\{[\s\S]*\}", cleaned)
         if match:
             return json.loads(match.group(0))
         raise
 
+
+def _task_dict(task: Task) -> dict:
+    return {
+        "id": task.id,
+        "category": task.category,
+        "description": task.description,
+        "room_number": task.room_number,
+        "status": task.status,
+        "priority": task.priority,
+        "staff_instruction": task.staff_instruction,
+        "created_at": task.created_at.isoformat() if task.created_at else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Health
+# ---------------------------------------------------------------------------
 
 @router.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.post("/chat")
-def chat(request: ChatRequest) -> Any:
+# ---------------------------------------------------------------------------
+# WebSocket
+# ---------------------------------------------------------------------------
+
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket) -> None:
+    await manager.connect(websocket)
     try:
-        response = model.generate_content(request.message)
+        while True:
+            await websocket.receive_text()   # keep-alive ping/pong
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+
+# ---------------------------------------------------------------------------
+# Chat / AI agent with function calling
+# ---------------------------------------------------------------------------
+
+@router.post("/chat")
+async def chat(request: ChatRequest, db: Session = Depends(get_db)) -> Any:
+    try:
+        response = _gemini.generate_content(request.message)
         if not response.text:
             raise HTTPException(status_code=502, detail="Gemini returned an empty response.")
-        return _extract_json_payload(response.text)
+
+        payload = _parse_json(response.text)
+        category: str = payload.get("category", "Ignore")
+
+        # Auto-create a task for actionable categories
+        if category not in ("Ignore", "Manager"):
+            task = Task(
+                category=category,
+                description=request.message,
+                room_number=request.room_number,
+                status="Pending",
+                priority=payload.get("priority", "Medium"),
+                staff_instruction=payload.get("staff_instruction", ""),
+            )
+            db.add(task)
+            db.commit()
+            db.refresh(task)
+
+            await manager.broadcast("new_task", _task_dict(task))
+            payload["task_id"] = task.id
+
+        return payload
+
     except HTTPException:
         raise
     except Exception as exc:
+<<<<<<< HEAD
         raise HTTPException(status_code=500, detail=f"Failed to generate a Gemini response: {exc}") from exc
 
 
@@ -337,3 +437,118 @@ def complete_cafeteria_task(payload: CafeteriaTaskCompletionPayload) -> TaskFeed
         message="Cafeteria task completion status recorded.",
         feedback=feedback,
     )
+=======
+        raise HTTPException(status_code=500, detail=f"AI agent error: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
+# Tasks
+# ---------------------------------------------------------------------------
+
+@router.get("/tasks", response_model=list[TaskOut])
+def get_tasks(db: Session = Depends(get_db)) -> list[Task]:
+    return db.query(Task).order_by(Task.created_at.desc()).all()
+
+
+@router.patch("/tasks/{task_id}", response_model=TaskOut)
+async def update_task_status(
+    task_id: int,
+    update: TaskStatusUpdate,
+    db: Session = Depends(get_db),
+) -> Task:
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
+
+    task.status = update.status
+    task.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.commit()
+    db.refresh(task)
+
+    await manager.broadcast("task_updated", {
+        "id": task.id,
+        "category": task.category,
+        "status": task.status,
+        "room_number": task.room_number,
+    })
+
+    return task
+
+
+# ---------------------------------------------------------------------------
+# Rooms
+# ---------------------------------------------------------------------------
+
+@router.get("/rooms", response_model=list[RoomOut])
+def get_rooms(db: Session = Depends(get_db)) -> list[Room]:
+    return db.query(Room).order_by(Room.room_number).all()
+
+
+@router.post("/rooms/{room_number}/checkout")
+async def trigger_checkout(room_number: str, db: Session = Depends(get_db)) -> dict:
+    room = db.query(Room).filter(Room.room_number == room_number).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found.")
+    if room.status != "Occupied":
+        raise HTTPException(status_code=400, detail="Room is not currently occupied.")
+
+    room.status = "Cleaning Needed"
+    room.assigned_guest = None
+
+    # Auto-create a cleaning task
+    task = Task(
+        category="Workers",
+        description=f"Checkout cleaning required for room {room_number}",
+        room_number=room_number,
+        status="Pending",
+        priority="High",
+        staff_instruction=f"Room {room_number} checked out. Clean and prepare for next guest immediately.",
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+
+    await manager.broadcast("room_checkout", {
+        "room_number": room_number,
+        "new_status": "Cleaning Needed",
+        "task_id": task.id,
+    })
+    await manager.broadcast("new_task", _task_dict(task))
+
+    return {"room_number": room_number, "status": "Cleaning Needed", "task_id": task.id}
+
+
+# ---------------------------------------------------------------------------
+# Analytics
+# ---------------------------------------------------------------------------
+
+@router.get("/analytics")
+def get_analytics(db: Session = Depends(get_db)) -> dict:
+    tasks = db.query(Task).all()
+
+    by_category: dict[str, int] = {}
+    by_status: dict[str, int] = {}
+
+    for task in tasks:
+        by_category[task.category] = by_category.get(task.category, 0) + 1
+        by_status[task.status] = by_status.get(task.status, 0) + 1
+
+    most_requested = max(by_category, key=lambda k: by_category[k]) if by_category else "N/A"
+
+    rooms = db.query(Room).all()
+    total_rooms = len(rooms)
+    occupied = sum(1 for r in rooms if r.status == "Occupied")
+    cleaning_needed = sum(1 for r in rooms if r.status == "Cleaning Needed")
+    occupancy_rate = round(occupied / total_rooms * 100, 1) if total_rooms else 0.0
+
+    return {
+        "total_tasks": len(tasks),
+        "by_category": by_category,
+        "by_status": by_status,
+        "most_requested": most_requested,
+        "total_rooms": total_rooms,
+        "occupied_rooms": occupied,
+        "cleaning_needed": cleaning_needed,
+        "occupancy_rate": occupancy_rate,
+    }
+>>>>>>> df4014dc84d564f79ffcbf2eb63f913cab7b628e
