@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { apiGet, apiPost } from '../services/api';
 
 const AuthContext = createContext({
   user: {
@@ -71,13 +72,13 @@ function useAuth() {
 function useCleaningRequests() {
   const [requests, setRequests] = useState(initialCleaningRequests);
 
-  const createRequest = async ({ title, details }) => {
+  const createRequest = async ({ title, details, requestId }) => {
     await new Promise((resolve) => {
       setTimeout(resolve, 700);
     });
 
     const nextRequest = {
-      id: `clean-${Date.now()}`,
+      id: requestId || `clean-${Date.now()}`,
       title,
       details,
       status: 'Pending',
@@ -88,19 +89,19 @@ function useCleaningRequests() {
     return nextRequest;
   };
 
-  return { requests, createRequest };
+  return { requests, createRequest, setRequests };
 }
 
 function useMaintenanceRequests() {
   const [requests, setRequests] = useState(initialMaintenanceRequests);
 
-  const createRequest = async ({ title, details }) => {
+  const createRequest = async ({ title, details, requestId }) => {
     await new Promise((resolve) => {
       setTimeout(resolve, 750);
     });
 
     const nextRequest = {
-      id: `maint-${Date.now()}`,
+      id: requestId || `maint-${Date.now()}`,
       title,
       details,
       status: 'Pending',
@@ -111,19 +112,19 @@ function useMaintenanceRequests() {
     return nextRequest;
   };
 
-  return { requests, createRequest };
+  return { requests, createRequest, setRequests };
 }
 
 function useCafeteriaOrders() {
   const [requests, setRequests] = useState(initialCafeteriaOrders);
 
-  const createRequest = async ({ title, details }) => {
+  const createRequest = async ({ title, details, requestId }) => {
     await new Promise((resolve) => {
       setTimeout(resolve, 800);
     });
 
     const nextRequest = {
-      id: `cafe-${Date.now()}`,
+      id: requestId || `cafe-${Date.now()}`,
       title,
       details,
       status: 'Pending',
@@ -134,7 +135,7 @@ function useCafeteriaOrders() {
     return nextRequest;
   };
 
-  return { requests, createRequest };
+  return { requests, createRequest, setRequests };
 }
 
 function useNaturalLanguageRequest() {
@@ -442,9 +443,21 @@ function PaymentTracker({ payments, loading, roomStayCost }) {
 
 export default function CustomerDashboard() {
   const { user, logout } = useAuth();
-  const { requests: cleaningRequests, createRequest: createCleaningRequest } = useCleaningRequests();
-  const { requests: maintenanceRequests, createRequest: createMaintenanceRequest } = useMaintenanceRequests();
-  const { requests: cafeteriaOrders, createRequest: createCafeteriaOrder } = useCafeteriaOrders();
+  const {
+    requests: cleaningRequests,
+    createRequest: createCleaningRequest,
+    setRequests: setCleaningRequests,
+  } = useCleaningRequests();
+  const {
+    requests: maintenanceRequests,
+    createRequest: createMaintenanceRequest,
+    setRequests: setMaintenanceRequests,
+  } = useMaintenanceRequests();
+  const {
+    requests: cafeteriaOrders,
+    createRequest: createCafeteriaOrder,
+    setRequests: setCafeteriaOrders,
+  } = useCafeteriaOrders();
   const { parseRequest } = useNaturalLanguageRequest();
   const { payments, loading: paymentsLoading } = usePaymentTracker();
 
@@ -460,6 +473,7 @@ export default function CustomerDashboard() {
   const [loadingAi, setLoadingAi] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [toasts, setToasts] = useState([]);
+  const [staffUpdates, setStaffUpdates] = useState([]);
 
   const roomStayCost = 120;
 
@@ -509,12 +523,32 @@ export default function CustomerDashboard() {
         details: requestText,
       };
 
+      const categoryByService = {
+        cleaning: 'Workers',
+        maintenance: 'Maintenance',
+        cafeteria: 'Food',
+      };
+      const priorityByService = {
+        cleaning: 'Medium',
+        maintenance: 'High',
+        cafeteria: 'Low',
+      };
+
+      const dispatchResult = await apiPost('/api/dispatch', {
+        category: categoryByService[serviceKey] || 'Ignore',
+        response_to_guest: `Thank you ${user.name}. Your ${serviceKey} request is received and being processed.`,
+        staff_instruction: requestText,
+        priority: priorityByService[serviceKey] || 'Low',
+      });
+
+      const backendInstructionId = dispatchResult?.routed_instruction?.instruction_id;
+
       if (serviceKey === 'cleaning') {
-        await createCleaningRequest(payload);
+        await createCleaningRequest({ ...payload, requestId: backendInstructionId });
       } else if (serviceKey === 'maintenance') {
-        await createMaintenanceRequest(payload);
+        await createMaintenanceRequest({ ...payload, requestId: backendInstructionId });
       } else {
-        await createCafeteriaOrder(payload);
+        await createCafeteriaOrder({ ...payload, requestId: backendInstructionId });
       }
 
       if (source === 'manual') {
@@ -567,6 +601,56 @@ export default function CustomerDashboard() {
     logout?.();
     window.location.href = '/login';
   };
+
+  useEffect(() => {
+    const syncFeedback = async () => {
+      try {
+        const [workers, maintenance, food] = await Promise.all([
+          apiGet('/api/feedback/task-state/queue/workers'),
+          apiGet('/api/feedback/task-state/queue/maintenance'),
+          apiGet('/api/feedback/task-state/queue/food'),
+        ]);
+
+        const allUpdates = [
+          ...(workers.items || []),
+          ...(maintenance.items || []),
+          ...(food.items || []),
+        ];
+
+        const feedbackMap = new Map(allUpdates.map((item) => [item.instruction_id, item]));
+
+        setCleaningRequests((previous) =>
+          previous.map((request) => ({
+            ...request,
+            status: feedbackMap.get(request.id)?.state || request.status,
+          }))
+        );
+        setMaintenanceRequests((previous) =>
+          previous.map((request) => ({
+            ...request,
+            status: feedbackMap.get(request.id)?.state || request.status,
+          }))
+        );
+        setCafeteriaOrders((previous) =>
+          previous.map((request) => {
+            const state = feedbackMap.get(request.id)?.state;
+            return {
+              ...request,
+              status: state === 'Completed' ? 'Approved' : state || request.status,
+            };
+          })
+        );
+
+        setStaffUpdates(allUpdates.slice(0, 6));
+      } catch {
+        setStaffUpdates([]);
+      }
+    };
+
+    syncFeedback();
+    const pollId = window.setInterval(syncFeedback, 15000);
+    return () => window.clearInterval(pollId);
+  }, [setCafeteriaOrders, setCleaningRequests, setMaintenanceRequests]);
 
   const serviceTabs = [
     { key: 'cleaning', label: 'Cleaning Requests' },
@@ -647,6 +731,24 @@ export default function CustomerDashboard() {
 
         <section>
           <PaymentTracker payments={payments} loading={paymentsLoading} roomStayCost={roomStayCost} />
+
+          <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-lg">
+            <h2 className="text-lg font-bold text-gray-900">Live Staff Updates</h2>
+            <div className="mt-3 space-y-2 text-sm">
+              {staffUpdates.length === 0 && (
+                <p className="rounded-lg border border-dashed border-gray-300 px-3 py-4 text-gray-500">
+                  No live updates yet.
+                </p>
+              )}
+
+              {staffUpdates.map((update) => (
+                <div key={update.instruction_id} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                  <p className="font-semibold text-gray-900">{update.queue.toUpperCase()} • {update.state}</p>
+                  <p className="text-gray-600">{update.staff_note || 'Staff is processing your request.'}</p>
+                </div>
+              ))}
+            </div>
+          </section>
         </section>
       </main>
 

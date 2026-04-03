@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { apiGet, apiPost } from '../services/api';
 
 const AuthContext = createContext({
   user: {
@@ -49,50 +50,55 @@ function useAuth() {
 function useIssues() {
   const [issues, setIssues] = useState(initialIssues);
 
-  useEffect(() => {
-    const refreshId = window.setInterval(() => {
-      setIssues((previousIssues) => {
-        if (previousIssues.length > 10) {
-          return previousIssues;
-        }
+  const toIssueType = (instruction) => {
+    if (/ac|air|hvac|temperature/i.test(instruction)) return 'HVAC';
+    if (/light|power|electric/i.test(instruction)) return 'Electricity';
+    if (/water|leak|tap|plumb/i.test(instruction)) return 'Plumbing';
+    return 'Maintenance';
+  };
 
-        if (Math.random() < 0.65) {
-          return previousIssues;
-        }
+  const refreshIssues = async () => {
+    try {
+      const [inbox, feedback] = await Promise.all([
+        apiGet('/api/inbox/maintenance'),
+        apiGet('/api/feedback/task-state/queue/maintenance'),
+      ]);
 
-        const roomNumber = String(100 + Math.floor(Math.random() * 350));
-        const issueTypes = ['Plumbing', 'Electricity', 'Furniture', 'HVAC', 'Internet'];
-        const descriptions = [
-          'Reported unusual noise from fixture.',
-          'Device outlet not functioning.',
-          'Guest reports issue with door lock.',
-          'Temperature control not responding.',
-          'Intermittent network connectivity issue.',
-        ];
+      const feedbackMap = new Map((feedback.items || []).map((item) => [item.instruction_id, item]));
 
-        const index = Math.floor(Math.random() * issueTypes.length);
+      const mapped = (inbox.items || []).map((item) => {
+        const matchedRoom = item.staff_instruction.match(/\b\d{2,4}\b/);
+        const state = feedbackMap.get(item.instruction_id)?.state || 'Pending';
+        const normalizedState = state === 'Completed' ? 'Resolved' : state;
 
-        const newIssue = {
-          id: `issue-${Date.now()}-${Math.floor(Math.random() * 100)}`,
-          roomNumber,
-          issueType: issueTypes[index],
-          description: descriptions[index],
-          reportedBy: 'New Customer',
-          status: 'Pending',
-          assignedStaff: 'Unassigned',
+        return {
+          id: item.instruction_id,
+          roomNumber: matchedRoom ? matchedRoom[0] : item.instruction_id.slice(-3),
+          issueType: toIssueType(item.staff_instruction),
+          description: item.staff_instruction,
+          reportedBy: 'Customer',
+          status: normalizedState,
+          assignedStaff: 'Maintenance Team',
           customerFeedback: null,
         };
-
-        return [newIssue, ...previousIssues];
       });
-    }, 20000);
+
+      setIssues(mapped.length > 0 ? mapped : initialIssues);
+    } catch {
+      setIssues(initialIssues);
+    }
+  };
+
+  useEffect(() => {
+    refreshIssues();
+    const pollId = window.setInterval(refreshIssues, 15000);
 
     return () => {
-      window.clearInterval(refreshId);
+      window.clearInterval(pollId);
     };
   }, []);
 
-  return { issues, setIssues };
+  return { issues, setIssues, refreshIssues };
 }
 
 function useResolveIssue() {
@@ -350,7 +356,7 @@ function CustomerFeedback({ issue, feedbackValue, onSubmitFeedback, onClear }) {
 
 export default function MaintenanceDashboard() {
   const { user, logout } = useAuth();
-  const { issues, setIssues } = useIssues();
+  const { issues, setIssues, refreshIssues } = useIssues();
   const { resolveIssue } = useResolveIssue();
 
   const [selectedIssueId, setSelectedIssueId] = useState('');
@@ -395,6 +401,14 @@ export default function MaintenanceDashboard() {
     try {
       setLoadingIssueId(issue.id);
       await resolveIssue(issue.id);
+      await apiPost('/api/feedback/task-state', {
+        instruction_id: issue.id,
+        queue: 'maintenance',
+        state: 'Completed',
+        is_complete: true,
+        staff_note: 'Issue resolved by maintenance team.',
+        updated_by: user.name,
+      });
       setIssues((previousIssues) =>
         previousIssues.map((currentIssue) => {
           if (currentIssue.id !== issue.id) {
@@ -410,6 +424,7 @@ export default function MaintenanceDashboard() {
       );
 
       setSelectedIssueId(issue.id);
+      await refreshIssues();
       pushToast(`Issue for room ${issue.roomNumber} marked as resolved.`, 'success');
     } catch {
       const message = 'Could not resolve issue. Please try again.';

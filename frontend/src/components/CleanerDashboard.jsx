@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { apiGet, apiPost } from '../services/api';
 
 const AuthContext = createContext({
   user: {
@@ -87,45 +88,66 @@ function useTasks(cleanerName) {
   const [assignedTasks, setAssignedTasks] = useState(initialAssignedTasks);
   const [availableRooms, setAvailableRooms] = useState(initialAvailableRooms);
 
-  useEffect(() => {
-    const tickId = window.setInterval(() => {
-      setAssignedTasks((previousTasks) =>
-        previousTasks.map((task) => ({
-          ...task,
-          etaMinutes: task.status === 'Completed' ? task.etaMinutes : Math.max(task.etaMinutes - 1, 0),
-        }))
+  const toRoomNumber = (instructionText, fallbackId) => {
+    const matchedNumber = instructionText.match(/\b\d{2,4}\b/);
+    return matchedNumber ? matchedNumber[0] : fallbackId.slice(-3);
+  };
+
+  const toEtaFromPriority = (priority) => {
+    if (priority === 'High') return 10;
+    if (priority === 'Medium') return 20;
+    return 35;
+  };
+
+  const refreshFromBackend = async () => {
+    try {
+      const [inbox, feedback] = await Promise.all([
+        apiGet('/api/inbox/workers'),
+        apiGet('/api/feedback/task-state/queue/workers'),
+      ]);
+
+      const feedbackMap = new Map(
+        (feedback.items || []).map((item) => [item.instruction_id, item])
       );
 
-      setAvailableRooms((previousRooms) =>
-        previousRooms.map((room) => ({
-          ...room,
-          etaMinutes: Math.max(room.etaMinutes - 1, 0),
-        }))
-      );
-    }, 6000);
+      const allTasks = (inbox.items || []).map((item) => {
+        const currentFeedback = feedbackMap.get(item.instruction_id);
+        const mappedStatus = currentFeedback?.state || 'Pending';
 
-    const queueId = window.setInterval(() => {
-      setAvailableRooms((previousRooms) => {
-        if (previousRooms.length > 8) {
-          return previousRooms;
-        }
-
-        const roomSuffix = Math.floor(100 + Math.random() * 400).toString();
-        const nextRoom = {
-          id: `queue-${Date.now()}-${Math.floor(Math.random() * 99)}`,
-          roomNumber: roomSuffix,
-          etaMinutes: 15 + Math.floor(Math.random() * 30),
-          status: 'Pending',
-          assignedCleaners: Math.random() > 0.5 ? ['Mina S.'] : [],
+        return {
+          id: item.instruction_id,
+          roomNumber: toRoomNumber(item.staff_instruction, item.instruction_id),
+          etaMinutes: toEtaFromPriority(item.priority),
+          status: mappedStatus,
+          assignedCleaners: [cleanerName],
+          rawInstruction: item.staff_instruction,
         };
-
-        return [...previousRooms, nextRoom];
       });
-    }, 22000);
+
+      setAssignedTasks(allTasks.filter((task) => task.status !== 'Pending'));
+      setAvailableRooms(
+        allTasks
+          .filter((task) => task.status === 'Pending')
+          .map((task) => ({
+            id: task.id,
+            roomNumber: task.roomNumber,
+            etaMinutes: task.etaMinutes,
+            status: task.status,
+            assignedCleaners: [],
+          }))
+      );
+    } catch {
+      setAssignedTasks(initialAssignedTasks);
+      setAvailableRooms(initialAvailableRooms);
+    }
+  };
+
+  useEffect(() => {
+    refreshFromBackend();
+    const pollId = window.setInterval(refreshFromBackend, 15000);
 
     return () => {
-      window.clearInterval(tickId);
-      window.clearInterval(queueId);
+      window.clearInterval(pollId);
     };
   }, []);
 
@@ -172,6 +194,7 @@ function useTasks(cleanerName) {
     availableRooms,
     takeTask,
     updateTaskStatus,
+    refreshFromBackend,
   };
 }
 
@@ -417,7 +440,7 @@ function AvailableRoomsList({
 
 export default function CleanerDashboard() {
   const { user, logout } = useAuth();
-  const { assignedTasks, availableRooms, takeTask, updateTaskStatus } = useTasks(user.name);
+  const { assignedTasks, availableRooms, takeTask, updateTaskStatus, refreshFromBackend } = useTasks(user.name);
   const { remainingSeconds, isCoolingDown, startCooldown } = useCooldown(90);
 
   const [selectedTaskId, setSelectedTaskId] = useState('');
@@ -495,12 +518,30 @@ export default function CleanerDashboard() {
 
       if (task.status === 'Pending') {
         updateTaskStatus({ taskId: task.id, nextStatus: 'In Progress' });
+        await apiPost('/api/feedback/task-state', {
+          instruction_id: task.id,
+          queue: 'workers',
+          state: 'In Progress',
+          is_complete: false,
+          staff_note: 'Cleaner started the task.',
+          updated_by: user.name,
+        });
         pushToast(`Room ${task.roomNumber} moved to In Progress.`, 'success');
       } else if (task.status === 'In Progress') {
         updateTaskStatus({ taskId: task.id, nextStatus: 'Completed' });
+        await apiPost('/api/feedback/task-state', {
+          instruction_id: task.id,
+          queue: 'workers',
+          state: 'Completed',
+          is_complete: true,
+          staff_note: 'Cleaning task completed.',
+          updated_by: user.name,
+        });
         startCooldown(90);
         pushToast(`Room ${task.roomNumber} completed. Cooldown started.`, 'success');
       }
+
+      await refreshFromBackend();
     } catch {
       const message = 'Could not confirm task. Try again.';
       setErrorMessage(message);

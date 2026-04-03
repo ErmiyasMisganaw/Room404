@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { apiGet, apiPost } from '../services/api';
 
 const AuthContext = createContext({
   user: {
@@ -62,48 +63,66 @@ function useAuth() {
 function useOrders() {
   const [orders, setOrders] = useState(initialOrders);
 
-  useEffect(() => {
-    const feedId = window.setInterval(() => {
-      setOrders((previousOrders) => {
-        if (previousOrders.length > 12 || Math.random() < 0.6) {
-          return previousOrders;
-        }
+  const refreshOrders = async () => {
+    try {
+      const [inbox, feedback] = await Promise.all([
+        apiGet('/api/inbox/food'),
+        apiGet('/api/feedback/task-state/queue/food'),
+      ]);
 
-        const roomNumber = String(100 + Math.floor(Math.random() * 350));
-        const guestNames = ['New Guest', 'Ava R.', 'Nati M.', 'Lucas K.'];
-        const randomGuest = guestNames[Math.floor(Math.random() * guestNames.length)];
-        const menuCandidates = ['Pasta', 'Coffee', 'Salad Bowl', 'Sparkling Water', 'Burger'];
-        const first = menuCandidates[Math.floor(Math.random() * menuCandidates.length)];
-        const second = menuCandidates[Math.floor(Math.random() * menuCandidates.length)];
+      const feedbackMap = new Map((feedback.items || []).map((item) => [item.instruction_id, item]));
 
-        const nextOrder = {
-          id: `order-${Date.now()}-${Math.floor(Math.random() * 99)}`,
-          roomNumber,
-          customerName: randomGuest,
-          items: [
-            { name: first, quantity: 1 + Math.floor(Math.random() * 2) },
-            { name: second, quantity: 1 + Math.floor(Math.random() * 3) },
-          ],
-          status: 'Pending',
-          timestamp: new Date().toISOString(),
+      const mappedOrders = (inbox.items || []).map((item) => {
+        const matchedRoom = item.staff_instruction.match(/\b\d{2,4}\b/);
+        const feedbackState = feedbackMap.get(item.instruction_id)?.state || 'Pending';
+        const status = feedbackState === 'Completed' ? 'Approved' : feedbackState;
+
+        return {
+          id: item.instruction_id,
+          roomNumber: matchedRoom ? matchedRoom[0] : item.instruction_id.slice(-3),
+          customerName: 'Guest',
+          items: [{ name: item.staff_instruction, quantity: 1 }],
+          status,
+          timestamp: item.created_at || new Date().toISOString(),
         };
-
-        return [nextOrder, ...previousOrders];
       });
-    }, 20000);
 
-    return () => {
-      window.clearInterval(feedId);
-    };
+      setOrders(mappedOrders.length > 0 ? mappedOrders : initialOrders);
+    } catch {
+      setOrders(initialOrders);
+    }
+  };
+
+  useEffect(() => {
+    refreshOrders();
+    const pollId = window.setInterval(refreshOrders, 15000);
+    return () => window.clearInterval(pollId);
   }, []);
 
-  return { orders, setOrders };
+  return { orders, setOrders, refreshOrders };
 }
 
 function useMenu() {
-  const [menu] = useState(initialMenu);
+  const [menu, setMenu] = useState(initialMenu);
 
-  return { menu };
+  const refreshMenu = async () => {
+    try {
+      const response = await apiGet('/api/cafeteria/availability');
+      const mappedMenu = (response.items || []).map((item) => ({
+        name: item.item_name,
+        availableQuantity: item.available_quantity,
+      }));
+      setMenu(mappedMenu.length > 0 ? mappedMenu : initialMenu);
+    } catch {
+      setMenu(initialMenu);
+    }
+  };
+
+  useEffect(() => {
+    refreshMenu();
+  }, []);
+
+  return { menu, refreshMenu };
 }
 
 function ToastContainer({ toasts, onDismiss }) {
@@ -383,8 +402,8 @@ function OrderDetails({ order, onApprove, onReject, loadingOrderId }) {
 
 export default function CafeteriaDashboard() {
   const { user, logout } = useAuth();
-  const { orders, setOrders } = useOrders();
-  const { menu } = useMenu();
+  const { orders, setOrders, refreshOrders } = useOrders();
+  const { menu, refreshMenu } = useMenu();
 
   const [selectedOrderId, setSelectedOrderId] = useState('');
   const [loadingOrderId, setLoadingOrderId] = useState('');
@@ -466,7 +485,26 @@ export default function CafeteriaDashboard() {
       await new Promise((resolve) => {
         setTimeout(resolve, 850);
       });
+      await apiPost('/api/cafeteria/complete-task', {
+        instruction_id: order.id,
+        is_complete: true,
+        staff_note: 'Order completed by cafeteria.',
+        updated_by: user.name,
+      });
+
+      for (const item of order.items) {
+        const matched = menu.find((menuItem) => menuItem.name.toLowerCase() === item.name.toLowerCase());
+        if (matched) {
+          await apiPost('/api/cafeteria/availability', {
+            item_name: matched.name,
+            available_quantity: Math.max(matched.availableQuantity - item.quantity, 0),
+            note: 'Auto-updated after order completion.',
+          });
+        }
+      }
+
       updateOrderStatus(order.id, 'Approved');
+      await Promise.all([refreshOrders(), refreshMenu()]);
       pushToast(`Order for room ${order.roomNumber} approved.`, 'success');
     } catch {
       const message = 'Failed to approve order.';
@@ -485,7 +523,16 @@ export default function CafeteriaDashboard() {
       await new Promise((resolve) => {
         setTimeout(resolve, 850);
       });
+      await apiPost('/api/feedback/task-state', {
+        instruction_id: order.id,
+        queue: 'food',
+        state: 'Rejected',
+        is_complete: false,
+        staff_note: 'Order rejected by cafeteria.',
+        updated_by: user.name,
+      });
       updateOrderStatus(order.id, 'Rejected');
+      await refreshOrders();
       pushToast(`Order for room ${order.roomNumber} rejected.`, 'error');
     } catch {
       const message = 'Failed to reject order.';

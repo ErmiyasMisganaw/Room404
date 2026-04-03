@@ -8,7 +8,21 @@ import google.generativeai as genai
 from fastapi import APIRouter, HTTPException
 
 from app.core.config import GEMINI_API_KEY, GEMINI_MODEL_NAME
-from app.schemas.schemas import AIDispatchPayload, ChatRequest, DispatchResponse, QueueResponse, RoutedInstruction
+from app.schemas.schemas import (
+    AIDispatchPayload,
+    CafeteriaTaskCompletionPayload,
+    ChatRequest,
+    DispatchResponse,
+    FoodAvailabilityItem,
+    FoodAvailabilityResponse,
+    FoodAvailabilityUpdate,
+    QueueResponse,
+    RoutedInstruction,
+    TaskFeedbackListResponse,
+    TaskFeedbackPayload,
+    TaskFeedbackRecord,
+    TaskFeedbackResponse,
+)
 
 router = APIRouter(prefix="/api", tags=["chat"])
 
@@ -26,6 +40,32 @@ CATEGORY_TO_QUEUE = {
     "Workers": "workers",
     "Manager": "manager",
     "Ignore": "ignore",
+}
+
+TASK_FEEDBACK_BY_ID: dict[str, TaskFeedbackRecord] = {}
+
+FOOD_AVAILABILITY_BY_ITEM: dict[str, FoodAvailabilityItem] = {
+    "pasta": FoodAvailabilityItem(
+        item_name="Pasta",
+        available_quantity=12,
+        is_available=True,
+        updated_at=datetime.now(timezone.utc),
+        note="Initial stock",
+    ),
+    "club sandwich": FoodAvailabilityItem(
+        item_name="Club Sandwich",
+        available_quantity=8,
+        is_available=True,
+        updated_at=datetime.now(timezone.utc),
+        note="Initial stock",
+    ),
+    "orange juice": FoodAvailabilityItem(
+        item_name="Orange Juice",
+        available_quantity=20,
+        is_available=True,
+        updated_at=datetime.now(timezone.utc),
+        note="Initial stock",
+    ),
 }
 
 SYSTEM_INSTRUCTIONS = """
@@ -166,6 +206,19 @@ def _read_queue(queue_name: str, consume: bool) -> QueueResponse:
     )
 
 
+def _instruction_exists_in_queue(queue_name: str, instruction_id: str) -> bool:
+    return any(item.instruction_id == instruction_id for item in QUEUE_BY_CATEGORY.get(queue_name, []))
+
+
+def _feedback_list_for_queue(queue_name: str) -> list[TaskFeedbackRecord]:
+    queue_instruction_ids = {item.instruction_id for item in QUEUE_BY_CATEGORY.get(queue_name, [])}
+    return [
+        feedback
+        for feedback in TASK_FEEDBACK_BY_ID.values()
+        if feedback.queue == queue_name or feedback.instruction_id in queue_instruction_ids
+    ]
+
+
 @router.get("/inbox/food", response_model=QueueResponse)
 def get_food_inbox(consume: bool = False) -> QueueResponse:
     return _read_queue("food", consume)
@@ -184,3 +237,103 @@ def get_workers_inbox(consume: bool = False) -> QueueResponse:
 @router.get("/inbox/manager", response_model=QueueResponse)
 def get_manager_inbox(consume: bool = False) -> QueueResponse:
     return _read_queue("manager", consume)
+
+
+@router.post("/feedback/task-state", response_model=TaskFeedbackResponse)
+def report_task_state(payload: TaskFeedbackPayload) -> TaskFeedbackResponse:
+    if not _instruction_exists_in_queue(payload.queue, payload.instruction_id):
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Instruction '{payload.instruction_id}' was not found in '{payload.queue}' queue. "
+                "Fetch the queue first and use a valid instruction_id."
+            ),
+        )
+
+    feedback = TaskFeedbackRecord(
+        instruction_id=payload.instruction_id,
+        queue=payload.queue,
+        state=payload.state,
+        is_complete=payload.is_complete,
+        staff_note=payload.staff_note,
+        updated_by=payload.updated_by,
+        updated_at=datetime.now(timezone.utc),
+    )
+    TASK_FEEDBACK_BY_ID[payload.instruction_id] = feedback
+
+    return TaskFeedbackResponse(
+        accepted=True,
+        message="Task feedback recorded successfully.",
+        feedback=feedback,
+    )
+
+
+@router.get("/feedback/task-state/{instruction_id}", response_model=TaskFeedbackResponse)
+def get_task_state(instruction_id: str) -> TaskFeedbackResponse:
+    feedback = TASK_FEEDBACK_BY_ID.get(instruction_id)
+    if not feedback:
+        raise HTTPException(status_code=404, detail="No feedback found for this instruction.")
+
+    return TaskFeedbackResponse(
+        accepted=True,
+        message="Task feedback fetched successfully.",
+        feedback=feedback,
+    )
+
+
+@router.get("/feedback/task-state/queue/{queue_name}", response_model=TaskFeedbackListResponse)
+def get_queue_task_feedback(queue_name: str) -> TaskFeedbackListResponse:
+    if queue_name not in QUEUE_BY_CATEGORY:
+        raise HTTPException(status_code=404, detail="Queue not found.")
+
+    items = _feedback_list_for_queue(queue_name)
+    return TaskFeedbackListResponse(count=len(items), items=items)
+
+
+@router.get("/cafeteria/availability", response_model=FoodAvailabilityResponse)
+def get_food_availability() -> FoodAvailabilityResponse:
+    items = sorted(FOOD_AVAILABILITY_BY_ITEM.values(), key=lambda item: item.item_name.lower())
+    return FoodAvailabilityResponse(count=len(items), items=items)
+
+
+@router.post("/cafeteria/availability", response_model=FoodAvailabilityItem)
+def update_food_availability(payload: FoodAvailabilityUpdate) -> FoodAvailabilityItem:
+    key = payload.item_name.strip().lower()
+    if not key:
+        raise HTTPException(status_code=400, detail="item_name cannot be empty.")
+
+    updated_item = FoodAvailabilityItem(
+        item_name=payload.item_name.strip(),
+        available_quantity=payload.available_quantity,
+        is_available=payload.available_quantity > 0,
+        updated_at=datetime.now(timezone.utc),
+        note=payload.note,
+    )
+    FOOD_AVAILABILITY_BY_ITEM[key] = updated_item
+    return updated_item
+
+
+@router.post("/cafeteria/complete-task", response_model=TaskFeedbackResponse)
+def complete_cafeteria_task(payload: CafeteriaTaskCompletionPayload) -> TaskFeedbackResponse:
+    if not _instruction_exists_in_queue("food", payload.instruction_id):
+        raise HTTPException(
+            status_code=404,
+            detail="Instruction was not found in food queue.",
+        )
+
+    feedback = TaskFeedbackRecord(
+        instruction_id=payload.instruction_id,
+        queue="food",
+        state="Completed" if payload.is_complete else "In Progress",
+        is_complete=payload.is_complete,
+        staff_note=payload.staff_note,
+        updated_by=payload.updated_by,
+        updated_at=datetime.now(timezone.utc),
+    )
+    TASK_FEEDBACK_BY_ID[payload.instruction_id] = feedback
+
+    return TaskFeedbackResponse(
+        accepted=True,
+        message="Cafeteria task completion status recorded.",
+        feedback=feedback,
+    )
