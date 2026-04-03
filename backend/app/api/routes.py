@@ -80,12 +80,13 @@ manager = ConnectionManager()
 CATEGORY_TO_QUEUE = {
     "Food": "food",
     "Maintenance": "maintenance",
-    "Workers": "workers",
+    "Cleaners": "cleaners",
+    "Workers": "cleaners",
     "Manager": "manager",
     "Ignore": "ignore",
 }
 
-VALID_QUEUES = {"food", "maintenance", "workers", "manager", "ignore"}
+VALID_QUEUES = {"food", "maintenance", "cleaners", "manager", "ignore"}
 
 STATE_TO_TASK_STATUS = {
     "pending": "Pending",
@@ -106,7 +107,7 @@ FOOD & DINING:
 MAINTENANCE ISSUES:
 - AC not working, Leaking faucet, Lightbulb out, TV remote issues, Wi-Fi connectivity.
 
-WORKERS / HOUSEKEEPING REQUESTS:
+CLEANERS / HOUSEKEEPING REQUESTS:
 - Extra pillows, Towels, Toothbrush kit, Ironing board, Room cleaning, Luggage help.
 
 MANAGER ESCALATION:
@@ -123,7 +124,7 @@ STRICT RULES:
 3. Classify every input:
    - "Food": Food orders or menu questions.
    - "Maintenance": Broken/malfunctioning items.
-   - "Workers": Housekeeping or item requests (pillows, towels).
+    - "Cleaners": Housekeeping or item requests (pillows, towels).
    - "Manager": Complaints, refunds, upgrades, security.
    - "Ignore": Irrelevant or already handled.
 
@@ -131,7 +132,7 @@ OUTPUT FORMAT: Return ONLY valid JSON. No markdown.
 
 JSON SCHEMA:
 {
-  "category": "Food | Maintenance | Workers | Manager | Ignore",
+    "category": "Food | Maintenance | Cleaners | Manager | Ignore",
   "response_to_guest": "Warm, professional reply for the guest",
   "staff_instruction": "Exact instruction with item and quantity for staff",
   "priority": "Low | Medium | High"
@@ -233,10 +234,12 @@ def _food_to_schema(record: FoodAvailability) -> FoodAvailabilityItem:
 def _normalize_category(value: str) -> str:
     normalized = (value or "").strip().title()
     aliases = {
-        "Worker": "Workers",
-        "Workers": "Workers",
-        "Housekeeping": "Workers",
-        "Cleaning": "Workers",
+        "Worker": "Cleaners",
+        "Workers": "Cleaners",
+        "Cleaner": "Cleaners",
+        "Cleaners": "Cleaners",
+        "Housekeeping": "Cleaners",
+        "Cleaning": "Cleaners",
         "Food": "Food",
         "Maintenance": "Maintenance",
         "Manager": "Manager",
@@ -302,7 +305,7 @@ def _fallback_classification(message: str) -> dict[str, str]:
     elif any(hint in lowered for hint in maintenance_hints):
         category = "Maintenance"
     elif any(hint in lowered for hint in worker_hints):
-        category = "Workers"
+        category = "Cleaners"
     elif any(hint in lowered for hint in manager_hints):
         category = "Manager"
     else:
@@ -675,7 +678,7 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)) -> AgentResp
                 request=request,
                 request_id=request_id,
             )
-        elif category == "Workers":
+        elif category == "Cleaners":
             envelope = await _handle_task_assignment_request(
                 db=db,
                 request=request,
@@ -788,7 +791,7 @@ async def dispatch_instruction(payload: DispatchRequest, db: Session = Depends(g
     )
     db.add(instruction)
 
-    if queue_name in {"food", "maintenance", "workers"}:
+    if queue_name in {"food", "maintenance", "cleaners"}:
         task = Task(
             category=instruction.category,
             description=payload.description,
@@ -800,7 +803,7 @@ async def dispatch_instruction(payload: DispatchRequest, db: Session = Depends(g
         db.add(task)
         db.flush()
         instruction.linked_task_id = task.id
-        if queue_name in {"maintenance", "workers"}:
+        if queue_name in {"maintenance", "cleaners"}:
             assign_task_to_staff(
                 db=db,
                 task=task,
@@ -971,13 +974,15 @@ def complete_cafeteria_task(payload: CafeteriaCompleteTaskRequest, db: Session =
 
 @router.get("/staff/leaderboard", response_model=StaffLeaderboardResponse)
 def get_staff_leaderboard(
-    pool: str = Query(default="workers"),
+    pool: str = Query(default="cleaners"),
     limit: int = Query(default=10, ge=1, le=100),
     db: Session = Depends(get_db),
 ) -> StaffLeaderboardResponse:
     normalized_pool = pool.strip().lower()
-    if normalized_pool not in {"workers", "maintenance"}:
-        raise HTTPException(status_code=400, detail="pool must be 'workers' or 'maintenance'")
+    if normalized_pool == "workers":
+        normalized_pool = "cleaners"
+    if normalized_pool not in {"cleaners", "maintenance"}:
+        raise HTTPException(status_code=400, detail="pool must be 'cleaners' or 'maintenance'")
 
     rows = (
         db.query(StaffMember)
@@ -1031,7 +1036,7 @@ async def trigger_checkout(room_number: str, db: Session = Depends(get_db)) -> d
 
     # Auto-create a cleaning task
     task = Task(
-        category="Workers",
+        category="Cleaners",
         description=f"Checkout cleaning required for room {room_number}",
         room_number=room_number,
         status="Pending",
@@ -1044,15 +1049,15 @@ async def trigger_checkout(room_number: str, db: Session = Depends(get_db)) -> d
     selected_staff = assign_task_to_staff(
         db=db,
         task=task,
-        pool="workers",
+        pool="cleaners",
         cooldown_minutes=STAFF_COOLDOWN_MINUTES,
     )
 
     db.add(
         RoutedInstruction(
             instruction_id=str(uuid4()),
-            queue_name="workers",
-            category="Workers",
+            queue_name="cleaners",
+            category="Cleaners",
             title="Checkout cleaning",
             description=task.description,
             room=room_number,

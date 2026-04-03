@@ -61,8 +61,8 @@ function useTasks(cleanerName) {
   const refreshFromBackend = async () => {
     try {
       const [inbox, feedback] = await Promise.all([
-        apiGet('/api/inbox/workers'),
-        apiGet('/api/feedback/task-state/queue/workers'),
+        apiGet('/api/inbox/cleaners'),
+        apiGet('/api/feedback/task-state/queue/cleaners'),
       ]);
 
       const feedbackMap = new Map(
@@ -340,7 +340,7 @@ export default function CleanerDashboard() {
         updateTaskStatus({ taskId: task.id, nextStatus: 'In Progress' });
         await apiPost('/api/feedback/task-state', {
           instruction_id: task.id,
-          queue_name: 'workers',
+          queue_name: 'cleaners',
           state: 'in_progress',
           note: 'Cleaner started the task.',
         });
@@ -349,7 +349,7 @@ export default function CleanerDashboard() {
         updateTaskStatus({ taskId: task.id, nextStatus: 'Completed' });
         await apiPost('/api/feedback/task-state', {
           instruction_id: task.id,
-          queue_name: 'workers',
+          queue_name: 'cleaners',
           state: 'completed',
           note: 'Cleaning task completed.',
         });

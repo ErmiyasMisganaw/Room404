@@ -10,7 +10,7 @@ export default function CustomerDashboard() {
     const payload = {
       title: 'Customer request',
       description: requestText,
-      category: 'workers',
+      category: 'cleaners',
       room: 'N/A',
       priority: 'medium',
     };
@@ -21,8 +21,8 @@ export default function CustomerDashboard() {
 
   const checkStatus = async () => {
     if (!instructionId) return;
-    const workers = await apiGet('/api/feedback/task-state/queue/workers');
-    const match = (workers.items || []).find((i) => String(i.instruction_id) === String(instructionId));
+    const cleaners = await apiGet('/api/feedback/task-state/queue/cleaners');
+    const match = (cleaners.items || []).find((i) => String(i.instruction_id) === String(instructionId));
     setStatus(match?.state || 'pending');
   };
 

@@ -13,7 +13,7 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id = Column(Integer, primary_key=True, index=True)
-    category = Column(String, index=True)          # Food | Maintenance | Workers | Manager
+    category = Column(String, index=True)          # Food | Maintenance | Cleaners | Manager
     description = Column(String)
     room_number = Column(String, index=True)
     status = Column(String, default="Pending")     # Pending | In Progress | Done
@@ -40,7 +40,7 @@ class RoutedInstruction(Base):
     __tablename__ = "routed_instructions"
 
     instruction_id = Column(String, primary_key=True, index=True)
-    queue_name = Column(String, index=True)  # food | maintenance | workers | manager | ignore
+    queue_name = Column(String, index=True)  # food | maintenance | cleaners | manager | ignore
     category = Column(String, index=True)
     title = Column(String, default="")
     description = Column(String, default="")
@@ -81,7 +81,7 @@ class StaffMember(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    pool = Column(String, index=True)  # workers | maintenance
+    pool = Column(String, index=True)  # cleaners | maintenance
     is_available = Column(Boolean, default=True)
     cooldown_until = Column(DateTime, nullable=True)
     active_task_count = Column(Integer, default=0)

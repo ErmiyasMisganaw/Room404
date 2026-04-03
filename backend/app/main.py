@@ -61,9 +61,9 @@ def _seed_staff_members(db) -> None:
         return
 
     initial_staff = [
-        {"name": "Cleaner 1", "pool": "workers", "is_available": True},
-        {"name": "Cleaner 2", "pool": "workers", "is_available": True},
-        {"name": "Cleaner 3", "pool": "workers", "is_available": True},
+        {"name": "Cleaner 1", "pool": "cleaners", "is_available": True},
+        {"name": "Cleaner 2", "pool": "cleaners", "is_available": True},
+        {"name": "Cleaner 3", "pool": "cleaners", "is_available": True},
         {"name": "Tech 1", "pool": "maintenance", "is_available": True},
         {"name": "Tech 2", "pool": "maintenance", "is_available": True},
     ]

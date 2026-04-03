@@ -14,9 +14,11 @@ def utcnow() -> datetime:
 
 def select_staff_for_pool(db: Session, pool: str) -> StaffMember | None:
     now = utcnow()
+    normalized_pool = (pool or "").strip().lower()
+    candidate_pools = ["cleaners", "workers"] if normalized_pool == "cleaners" else [normalized_pool]
     candidates = (
         db.query(StaffMember)
-        .filter(StaffMember.pool == pool, StaffMember.is_available.is_(True))
+        .filter(StaffMember.pool.in_(candidate_pools), StaffMember.is_available.is_(True))
         .all()
     )
 

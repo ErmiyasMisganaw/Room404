@@ -7,6 +7,7 @@ import MaintenanceDashboard from './components/MaintenanceDashboard';
 import CafeteriaDashboard from './components/CafeteriaDashboard';
 import ReceptionDashboard from './components/ReceptionDashboard';
 import CustomerDashboard from './components/CustomerDashboard';
+import ApiWorkbench from './components/ApiWorkbench';
 import { AuthProvider, roleRouteMap, useAuth } from './context/AuthContext';
 
 function PreviewEntryPoints() {
@@ -16,6 +17,7 @@ function PreviewEntryPoints() {
     { label: 'Cafeteria UI', path: '/preview/cafeteria' },
     { label: 'Reception UI', path: '/preview/reception' },
     { label: 'Customer UI', path: '/preview/customer' },
+    { label: 'API Workbench', path: '/preview/api' },
   ];
 
   return (
@@ -74,6 +76,7 @@ export default function AppRoutes() {
           <Route path="/preview/cafeteria" element={<CafeteriaDashboard />} />
           <Route path="/preview/reception" element={<ReceptionDashboard />} />
           <Route path="/preview/customer" element={<CustomerDashboard />} />
+          <Route path="/preview/api" element={<ApiWorkbench />} />
 
           {/* Backend integration later: replace simulated auth in context with token/session checks. */}
           <Route element={<ProtectedRoute allowedRoles={['cleaner']} />}>
@@ -90,6 +93,7 @@ export default function AppRoutes() {
 
           <Route element={<ProtectedRoute allowedRoles={['receptionist']} />}>
             <Route path="/reception" element={<ReceptionDashboard />} />
+            <Route path="/reception/api" element={<ApiWorkbench />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={['customer']} />}>
