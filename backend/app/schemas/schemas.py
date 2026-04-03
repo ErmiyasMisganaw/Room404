@@ -63,3 +63,46 @@ class FoodAvailabilityItem(BaseModel):
     is_available: bool = True
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     note: Optional[str] = None
+
+
+class DispatchRequest(BaseModel):
+    title: Optional[str] = None
+    description: str = Field(..., min_length=1)
+    category: str
+    room: Optional[str] = "Unknown"
+    priority: str = "Medium"
+    response_to_guest: Optional[str] = None
+    staff_instruction: Optional[str] = None
+
+
+class DispatchResponse(BaseModel):
+    instruction_id: str
+    queue_name: str
+    status: str
+
+
+class InboxResponse(BaseModel):
+    queue_name: str
+    items: list[RoutedInstruction]
+
+
+class TaskFeedbackUpdateRequest(BaseModel):
+    instruction_id: str
+    queue_name: str
+    state: str
+    note: Optional[str] = None
+
+
+class TaskFeedbackQueueResponse(BaseModel):
+    queue_name: str
+    items: list[TaskFeedbackRecord]
+
+
+class FoodAvailabilityResponse(BaseModel):
+    open: bool
+    items: list[FoodAvailabilityItem]
+
+
+class CafeteriaCompleteTaskRequest(BaseModel):
+    instruction_id: str
+    note: Optional[str] = None

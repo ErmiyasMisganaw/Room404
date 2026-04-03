@@ -2,6 +2,7 @@ import json
 import re
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 import google.generativeai as genai
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
@@ -9,13 +10,20 @@ from sqlalchemy.orm import Session
 
 from app.core.config import GEMINI_API_KEY, GEMINI_MODEL_NAME
 from app.db.database import get_db
-from app.models.models import Room, Task
+from app.models.models import FoodAvailability, Room, RoutedInstruction, Task, TaskFeedback
 from app.schemas.schemas import (
+    CafeteriaCompleteTaskRequest,
     ChatRequest,
+    DispatchRequest,
+    DispatchResponse,
     FoodAvailabilityItem,
+    FoodAvailabilityResponse,
+    InboxResponse,
     RoomOut,
-    RoutedInstruction,
+    RoutedInstruction as RoutedInstructionSchema,
+    TaskFeedbackQueueResponse,
     TaskFeedbackRecord,
+    TaskFeedbackUpdateRequest,
     TaskOut,
     TaskStatusUpdate,
 )
@@ -58,14 +66,6 @@ manager = ConnectionManager()
 # Gemini AI setup
 # ---------------------------------------------------------------------------
 
-QUEUE_BY_CATEGORY: dict[str, list[RoutedInstruction]] = {
-    "food": [],
-    "maintenance": [],
-    "workers": [],
-    "manager": [],
-    "ignore": [],
-}
-
 CATEGORY_TO_QUEUE = {
     "Food": "food",
     "Maintenance": "maintenance",
@@ -74,30 +74,12 @@ CATEGORY_TO_QUEUE = {
     "Ignore": "ignore",
 }
 
-TASK_FEEDBACK_BY_ID: dict[str, TaskFeedbackRecord] = {}
+VALID_QUEUES = {"food", "maintenance", "workers", "manager", "ignore"}
 
-FOOD_AVAILABILITY_BY_ITEM: dict[str, FoodAvailabilityItem] = {
-    "pasta": FoodAvailabilityItem(
-        item_name="Pasta",
-        available_quantity=12,
-        is_available=True,
-        updated_at=datetime.now(timezone.utc),
-        note="Initial stock",
-    ),
-    "club sandwich": FoodAvailabilityItem(
-        item_name="Club Sandwich",
-        available_quantity=8,
-        is_available=True,
-        updated_at=datetime.now(timezone.utc),
-        note="Initial stock",
-    ),
-    "orange juice": FoodAvailabilityItem(
-        item_name="Orange Juice",
-        available_quantity=20,
-        is_available=True,
-        updated_at=datetime.now(timezone.utc),
-        note="Initial stock",
-    ),
+STATE_TO_TASK_STATUS = {
+    "pending": "Pending",
+    "in_progress": "In Progress",
+    "completed": "Done",
 }
 
 SYSTEM_INSTRUCTIONS = """
@@ -180,6 +162,56 @@ def _task_dict(task: Task) -> dict:
     }
 
 
+def _normalize_queue(value: str) -> str:
+    lowered = (value or "").strip().lower()
+    if lowered in VALID_QUEUES:
+        return lowered
+    titled = (value or "").strip().title()
+    return CATEGORY_TO_QUEUE.get(titled, "ignore")
+
+
+def _normalize_state(value: str) -> str:
+    normalized = (value or "pending").strip().lower().replace(" ", "_")
+    if normalized in {"pending", "in_progress", "completed"}:
+        return normalized
+    return "pending"
+
+
+def _instruction_to_schema(record: RoutedInstruction) -> RoutedInstructionSchema:
+    return RoutedInstructionSchema(
+        instruction_id=record.instruction_id,
+        category=record.category,
+        response_to_guest=record.response_to_guest,
+        staff_instruction=record.staff_instruction,
+        priority=record.priority,
+        room=record.room,
+        title=record.title,
+        description=record.description,
+        status=record.status,
+        created_at=record.created_at,
+    )
+
+
+def _feedback_to_schema(record: TaskFeedback) -> TaskFeedbackRecord:
+    return TaskFeedbackRecord(
+        instruction_id=record.instruction_id,
+        queue_name=record.queue_name,
+        state=record.state,
+        note=record.note,
+        updated_at=record.updated_at,
+    )
+
+
+def _food_to_schema(record: FoodAvailability) -> FoodAvailabilityItem:
+    return FoodAvailabilityItem(
+        item_name=record.item_name,
+        available_quantity=record.available_quantity,
+        is_available=record.is_available,
+        updated_at=record.updated_at,
+        note=record.note,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
@@ -231,6 +263,22 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)) -> Any:
             db.commit()
             db.refresh(task)
 
+            instruction = RoutedInstruction(
+                instruction_id=f"t-{task.id}",
+                queue_name=_normalize_queue(category),
+                category=category,
+                title="AI chat request",
+                description=request.message,
+                room=request.room_number,
+                priority=payload.get("priority", "Medium"),
+                response_to_guest=payload.get("response_to_guest", ""),
+                staff_instruction=payload.get("staff_instruction", ""),
+                status="pending",
+                linked_task_id=task.id,
+            )
+            db.add(instruction)
+            db.commit()
+
             await manager.broadcast("new_task", _task_dict(task))
             payload["task_id"] = task.id
 
@@ -274,6 +322,186 @@ async def update_task_status(
     })
 
     return task
+
+
+# ---------------------------------------------------------------------------
+# Dispatch / Inbox / Feedback / Cafeteria (DB-backed)
+# ---------------------------------------------------------------------------
+
+@router.post("/dispatch", response_model=DispatchResponse)
+def dispatch_instruction(payload: DispatchRequest, db: Session = Depends(get_db)) -> DispatchResponse:
+    queue_name = _normalize_queue(payload.category)
+    instruction_id = str(uuid4())
+    normalized_priority = (payload.priority or "Medium").strip().title()
+
+    instruction = RoutedInstruction(
+        instruction_id=instruction_id,
+        queue_name=queue_name,
+        category=payload.category.strip().title(),
+        title=payload.title or "Guest request",
+        description=payload.description,
+        room=payload.room or "Unknown",
+        priority=normalized_priority,
+        response_to_guest=payload.response_to_guest or "",
+        staff_instruction=payload.staff_instruction or payload.description,
+        status="pending",
+    )
+    db.add(instruction)
+
+    if queue_name in {"food", "maintenance", "workers"}:
+        task = Task(
+            category=instruction.category,
+            description=payload.description,
+            room_number=payload.room or "Unknown",
+            status="Pending",
+            priority=normalized_priority,
+            staff_instruction=instruction.staff_instruction,
+        )
+        db.add(task)
+        db.flush()
+        instruction.linked_task_id = task.id
+
+    db.commit()
+
+    return DispatchResponse(
+        instruction_id=instruction_id,
+        queue_name=queue_name,
+        status="queued",
+    )
+
+
+@router.get("/inbox/{queue_name}", response_model=InboxResponse)
+def get_inbox(queue_name: str, db: Session = Depends(get_db)) -> InboxResponse:
+    normalized_queue = _normalize_queue(queue_name)
+    if normalized_queue not in VALID_QUEUES:
+        raise HTTPException(status_code=400, detail="Invalid queue name")
+
+    rows = (
+        db.query(RoutedInstruction)
+        .filter(RoutedInstruction.queue_name == normalized_queue)
+        .order_by(RoutedInstruction.created_at.desc())
+        .all()
+    )
+
+    return InboxResponse(
+        queue_name=normalized_queue,
+        items=[_instruction_to_schema(row) for row in rows],
+    )
+
+
+@router.post("/feedback/task-state", response_model=TaskFeedbackRecord)
+def upsert_task_feedback(payload: TaskFeedbackUpdateRequest, db: Session = Depends(get_db)) -> TaskFeedbackRecord:
+    normalized_queue = _normalize_queue(payload.queue_name)
+    normalized_state = _normalize_state(payload.state)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    record = (
+        db.query(TaskFeedback)
+        .filter(TaskFeedback.instruction_id == payload.instruction_id)
+        .first()
+    )
+    if record:
+        record.queue_name = normalized_queue
+        record.state = normalized_state
+        record.note = payload.note or ""
+        record.updated_at = now
+    else:
+        record = TaskFeedback(
+            instruction_id=payload.instruction_id,
+            queue_name=normalized_queue,
+            state=normalized_state,
+            note=payload.note or "",
+            updated_at=now,
+        )
+        db.add(record)
+
+    instruction = (
+        db.query(RoutedInstruction)
+        .filter(RoutedInstruction.instruction_id == payload.instruction_id)
+        .first()
+    )
+    if instruction:
+        instruction.status = normalized_state
+        instruction.updated_at = now
+        if instruction.linked_task_id:
+            task = db.query(Task).filter(Task.id == instruction.linked_task_id).first()
+            if task:
+                task.status = STATE_TO_TASK_STATUS.get(normalized_state, task.status)
+                task.updated_at = now
+
+    db.commit()
+    db.refresh(record)
+    return _feedback_to_schema(record)
+
+
+@router.get("/feedback/task-state/{instruction_id}", response_model=TaskFeedbackRecord)
+def get_task_feedback(instruction_id: str, db: Session = Depends(get_db)) -> TaskFeedbackRecord:
+    record = db.query(TaskFeedback).filter(TaskFeedback.instruction_id == instruction_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+    return _feedback_to_schema(record)
+
+
+@router.get("/feedback/task-state/queue/{queue_name}", response_model=TaskFeedbackQueueResponse)
+def get_task_feedback_queue(queue_name: str, db: Session = Depends(get_db)) -> TaskFeedbackQueueResponse:
+    normalized_queue = _normalize_queue(queue_name)
+    rows = (
+        db.query(TaskFeedback)
+        .filter(TaskFeedback.queue_name == normalized_queue)
+        .order_by(TaskFeedback.updated_at.desc())
+        .all()
+    )
+    return TaskFeedbackQueueResponse(
+        queue_name=normalized_queue,
+        items=[_feedback_to_schema(row) for row in rows],
+    )
+
+
+@router.get("/cafeteria/availability", response_model=FoodAvailabilityResponse)
+def get_cafeteria_availability(db: Session = Depends(get_db)) -> FoodAvailabilityResponse:
+    items = db.query(FoodAvailability).order_by(FoodAvailability.item_name.asc()).all()
+    mapped = [_food_to_schema(item) for item in items]
+    is_open = any(item.is_available and item.available_quantity > 0 for item in mapped)
+    return FoodAvailabilityResponse(open=is_open, items=mapped)
+
+
+@router.post("/cafeteria/availability", response_model=FoodAvailabilityResponse)
+def upsert_cafeteria_availability(item: FoodAvailabilityItem, db: Session = Depends(get_db)) -> FoodAvailabilityResponse:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    key = item.item_name.strip()
+
+    row = db.query(FoodAvailability).filter(FoodAvailability.item_name == key).first()
+    if row:
+        row.available_quantity = item.available_quantity
+        row.is_available = item.is_available
+        row.note = item.note or ""
+        row.updated_at = now
+    else:
+        row = FoodAvailability(
+            item_name=key,
+            available_quantity=item.available_quantity,
+            is_available=item.is_available,
+            note=item.note or "",
+            updated_at=now,
+        )
+        db.add(row)
+
+    db.commit()
+    return get_cafeteria_availability(db)
+
+
+@router.post("/cafeteria/complete-task", response_model=TaskFeedbackRecord)
+def complete_cafeteria_task(payload: CafeteriaCompleteTaskRequest, db: Session = Depends(get_db)) -> TaskFeedbackRecord:
+    feedback = upsert_task_feedback(
+        TaskFeedbackUpdateRequest(
+            instruction_id=payload.instruction_id,
+            queue_name="food",
+            state="completed",
+            note=payload.note or "Cafeteria marked as complete",
+        ),
+        db,
+    )
+    return feedback
 
 
 # ---------------------------------------------------------------------------

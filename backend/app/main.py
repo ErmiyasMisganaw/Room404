@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
+from app.core.config import CORS_ALLOWED_ORIGINS
 from app.db.database import Base, SessionLocal, engine
 from app.models import models  # noqa: F401 — registers ORM models before create_all
 
@@ -35,12 +36,30 @@ def _seed_rooms(db) -> None:
     db.commit()
 
 
+def _seed_food_availability(db) -> None:
+    """Insert default cafeteria stock on first run if table is empty."""
+    if db.query(models.FoodAvailability).count() > 0:
+        return
+
+    initial_items = [
+        {"item_name": "Pasta", "available_quantity": 12, "is_available": True, "note": "Initial stock"},
+        {"item_name": "Club Sandwich", "available_quantity": 8, "is_available": True, "note": "Initial stock"},
+        {"item_name": "Orange Juice", "available_quantity": 20, "is_available": True, "note": "Initial stock"},
+    ]
+
+    for data in initial_items:
+        db.add(models.FoodAvailability(**data))
+
+    db.commit()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
         _seed_rooms(db)
+        _seed_food_availability(db)
     finally:
         db.close()
     yield
@@ -48,9 +67,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Room404 Hotel AI Backend", lifespan=lifespan)
 
+allowed_origins = [origin.strip() for origin in CORS_ALLOWED_ORIGINS.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins or ["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
