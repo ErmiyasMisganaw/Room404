@@ -2,7 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar, { Icon } from './Sidebar';
 import { useAuth } from '../context/AuthContext';
-import { apiGet, apiPost } from '../services/api';
+import {
+  apiGet,
+  completeCafeteriaTask,
+  getCafeteriaAnalytics,
+  getCafeteriaAvailability,
+  getInbox,
+  updateCafeteriaAvailability,
+} from '../services/api';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -14,7 +21,7 @@ function Toast({ toasts, onDismiss }) {
         <div key={t.id} className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm shadow-xl ${
           t.type === 'success' ? 'border-[#9bc23c]/40 bg-[#9bc23c]/10 text-[#2d5c10]' : 'border-[#d4186e]/40 bg-[#d4186e]/10 text-[#8a0040]'
         }`}>
-          <p className="font-medium">{t.message}</p>
+          <p className="font-medium">{t.msg || t.message}</p>
           <button type="button" onClick={() => onDismiss(t.id)} className="text-xs opacity-60 hover:opacity-100">✕</button>
         </div>
       ))}
@@ -118,7 +125,7 @@ function OrdersSection() {
   const refresh = async () => {
     setLoading(true);
     try {
-      const inbox = await apiGet('/api/inbox/food');
+      const inbox = await getInbox('food');
       setOrders((inbox.items || []).map((o) => ({ ...o, _done: false })));
     } catch {
       setOrders([]);
@@ -136,18 +143,10 @@ function OrdersSection() {
   const handleComplete = async (order) => {
     setLoadingId(order.instruction_id);
     try {
-      await Promise.all([
-        apiPost('/api/cafeteria/complete-task', {
-          instruction_id: String(order.instruction_id),
-          note: 'Food order prepared',
-        }),
-        apiPost('/api/feedback/task-state', {
-          instruction_id: String(order.instruction_id),
-          queue_name: 'food',
-          state: 'completed',
-          note: 'Cafeteria completed order',
-        }),
-      ]);
+      await completeCafeteriaTask({
+        instruction_id: String(order.instruction_id),
+        note: 'Food order prepared',
+      });
       setOrders((prev) => prev.map((o) => o.instruction_id === order.instruction_id ? { ...o, _done: true } : o));
       pushToast(`Order #${String(order.instruction_id).slice(-6)} marked as prepared.`, 'success');
     } catch {
@@ -231,7 +230,7 @@ function OrdersSection() {
 
 // ── Menu Section ──────────────────────────────────────────────────────────────
 
-function MenuSection() {
+function MenuSection({ userEmail }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState([]);
@@ -246,7 +245,7 @@ function MenuSection() {
   const refresh = async () => {
     setLoading(true);
     try {
-      const data = await apiGet('/api/cafeteria/availability');
+      const data = await getCafeteriaAvailability();
       setItems(Array.isArray(data) ? data : data?.items || []);
     } catch {
       setItems([]);
@@ -260,9 +259,12 @@ function MenuSection() {
   const toggleItem = async (item) => {
     setUpdating(item.item_name);
     try {
-      await apiPost('/api/cafeteria/availability', {
+      await updateCafeteriaAvailability({
         item_name: item.item_name,
+        available_quantity: item.available_quantity ?? 0,
         is_available: !item.is_available,
+        updated_by: userEmail || 'cafeteria',
+        note: item.note || '',
       });
       setItems((prev) => prev.map((i) => i.item_name === item.item_name ? { ...i, is_available: !i.is_available } : i));
       pushToast(`${item.item_name} marked as ${!item.is_available ? 'available' : 'unavailable'}.`, 'success');
@@ -370,9 +372,9 @@ function AnalyticsSection() {
     const fetch = async () => {
       try {
         const [inbox, avail, analytics] = await Promise.all([
-          apiGet('/api/inbox/food').catch(() => ({ items: [] })),
-          apiGet('/api/cafeteria/availability').catch(() => []),
-          apiGet('/api/analytics').catch(() => null),
+          getInbox('food').catch(() => ({ items: [] })),
+          getCafeteriaAvailability().catch(() => []),
+          getCafeteriaAnalytics().catch(() => null),
         ]);
         setOrders(inbox.items || []);
         setMenuItems(Array.isArray(avail) ? avail : avail?.items || []);
@@ -434,19 +436,19 @@ function AnalyticsSection() {
         {/* Hotel stats */}
         {analyticsData && (
           <div className="rounded-2xl border border-[#c4845a]/25 bg-white p-5">
-            <h3 className="mb-4 text-sm font-bold text-[#0d2414]">Hotel Overview</h3>
+            <h3 className="mb-4 text-sm font-bold text-[#0d2414]">Cafeteria Overview</h3>
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
-                <p className="text-xl font-bold text-[#1d5c28]">{analyticsData.total_tasks ?? '—'}</p>
-                <p className="text-xs text-gray-500">Total Tasks</p>
+                <p className="text-xl font-bold text-[#1d5c28]">{analyticsData.total_orders_30d ?? '—'}</p>
+                <p className="text-xs text-gray-500">Orders (30d)</p>
               </div>
               <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
-                <p className="text-xl font-bold text-[#3a6e10]">{analyticsData.occupancy_rate != null ? `${analyticsData.occupancy_rate}%` : '—'}</p>
-                <p className="text-xs text-gray-500">Occupancy</p>
+                <p className="text-xl font-bold text-[#3a6e10]">{analyticsData.pending_orders ?? '—'}</p>
+                <p className="text-xs text-gray-500">Pending Orders</p>
               </div>
               <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
-                <p className="text-xl font-bold text-[#c4845a] truncate">{analyticsData.most_requested ?? '—'}</p>
-                <p className="text-xs text-gray-500">Top Request</p>
+                <p className="text-xl font-bold text-[#c4845a] truncate">{analyticsData.top_item ?? '—'}</p>
+                <p className="text-xs text-gray-500">Top Item</p>
               </div>
             </div>
           </div>
@@ -468,6 +470,7 @@ export default function CafeteriaDashboard() {
   const navigate = useNavigate();
   const { user: authUser, logout } = useAuth();
   const user = authUser || { id: 'CF-001', name: 'Cafeteria Staff', role: 'cafeteria' };
+  const userEmail = authUser?.email || '';
   const [activeSection, setActiveSection] = useState('orders');
 
   const handleLogout = async () => {
@@ -490,7 +493,7 @@ export default function CafeteriaDashboard() {
       <main className="flex-1 lg:ml-64 min-h-screen" key={activeSection}>
         <div className="animate-fade-in">
           {activeSection === 'orders'    && <OrdersSection />}
-          {activeSection === 'menu'      && <MenuSection />}
+          {activeSection === 'menu'      && <MenuSection userEmail={userEmail} />}
           {activeSection === 'analytics' && <AnalyticsSection />}
         </div>
       </main>
