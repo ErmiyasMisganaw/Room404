@@ -126,4 +126,18 @@ export function completeCafeteriaTask(payload) {
   return apiPost('/api/cafeteria/complete-task', payload);
 }
 
+export function getCafeteriaAnalytics() {
+  return apiGet('/api/cafeteria/analytics');
+}
+
+export function getMenu(includeUnavailable = false) {
+  return apiGet(
+      `/api/menu?include_unavailable=${includeUnavailable ? 'true' : 'false'}`);
+}
+
+export function getCustomerRequests(roomNumber) {
+  const value = encodeURIComponent(`${roomNumber || ''}`.trim());
+  return apiGet(`/api/customer/requests?room_number=${value}`);
+}
+
 export {API_BASE_URL};
