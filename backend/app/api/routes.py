@@ -273,10 +273,23 @@ def _normalize_category(value: str) -> str:
     return aliases.get(normalized, "Manager")
 
 
+def _normalize_room_number(value: str | None) -> str:
+    normalized = f"{value or ''}".strip()
+    if not normalized:
+        return "Unknown"
+
+    lowered = normalized.lower()
+    if lowered in {"null", "none", "n/a", "na", "unknown", "undefined", "-"}:
+        return "Unknown"
+
+    return normalized
+
+
 def _build_user_key(request: ChatRequest) -> str:
     if request.user_id and request.user_id.strip():
         return request.user_id.strip().lower()
-    return f"{request.name.strip().lower()}::{request.room_number.strip()}"
+    room_number = _normalize_room_number(request.room_number)
+    return f"{request.name.strip().lower()}::{room_number}"
 
 
 def _get_recent_chat_lines(db: Session, user_key: str, limit: int = 5) -> list[ChatMemory]:
@@ -633,11 +646,12 @@ async def _handle_task_assignment_request(
 ) -> AgentResponseEnvelope:
     normalized_priority = (payload.get("priority") or "Medium").strip().title()
     staff_instruction = payload.get("staff_instruction") or request.message
+    room_number = _normalize_room_number(request.room_number)
 
     task = Task(
         category=category,
         description=request.message,
-        room_number=request.room_number,
+        room_number=room_number,
         status="Pending",
         priority=normalized_priority,
         staff_instruction=staff_instruction,
@@ -659,7 +673,7 @@ async def _handle_task_assignment_request(
             category=category,
             title="AI chat request",
             description=request.message,
-            room=request.room_number,
+            room=room_number,
             priority=normalized_priority,
             response_to_guest=payload.get("response_to_guest") or "",
             staff_instruction=staff_instruction,
@@ -705,6 +719,7 @@ async def _handle_cafeteria_request(
     request: ChatRequest,
     request_id: str,
 ) -> AgentResponseEnvelope:
+    room_number = _normalize_room_number(request.room_number)
     menu_rows = db.query(FoodAvailability).order_by(FoodAvailability.item_name.asc()).all()
     available_rows = [
         row
@@ -758,12 +773,12 @@ async def _handle_cafeteria_request(
         )
 
     normalized_priority = "Medium"
-    staff_instruction = f"Prepare {requested_item} for room {request.room_number}."
+    staff_instruction = f"Prepare {requested_item} for room {room_number}."
 
     task = Task(
         category="Food",
         description=request.message,
-        room_number=request.room_number,
+        room_number=room_number,
         status="Pending",
         priority=normalized_priority,
         staff_instruction=staff_instruction,
@@ -778,7 +793,7 @@ async def _handle_cafeteria_request(
             category="Food",
             title="AI cafeteria request",
             description=request.message,
-            room=request.room_number,
+            room=room_number,
             priority=normalized_priority,
             response_to_guest="",
             staff_instruction=staff_instruction,
@@ -930,6 +945,7 @@ async def dispatch_instruction(payload: DispatchRequest, db: Session = Depends(g
     queue_name = _normalize_queue(payload.category)
     instruction_id = str(uuid4())
     normalized_priority = (payload.priority or "Medium").strip().title()
+    room_number = _normalize_room_number(payload.room)
     task: Task | None = None
 
     instruction = RoutedInstruction(
@@ -938,7 +954,7 @@ async def dispatch_instruction(payload: DispatchRequest, db: Session = Depends(g
         category=payload.category.strip().title(),
         title=payload.title or "Guest request",
         description=payload.description,
-        room=payload.room or "Unknown",
+        room=room_number,
         priority=normalized_priority,
         response_to_guest=payload.response_to_guest or "",
         staff_instruction=payload.staff_instruction or payload.description,
@@ -950,7 +966,7 @@ async def dispatch_instruction(payload: DispatchRequest, db: Session = Depends(g
         task = Task(
             category=instruction.category,
             description=payload.description,
-            room_number=payload.room or "Unknown",
+            room_number=room_number,
             status="Pending",
             priority=normalized_priority,
             staff_instruction=instruction.staff_instruction,
