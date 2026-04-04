@@ -1,5 +1,44 @@
 # React + TypeScript + Vite
 
+## Supabase Authentication Setup
+
+This frontend now uses Supabase email/password auth for the login page.
+
+Required env vars in `frontend/.env`:
+
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your_supabase_publishable_anon_key
+```
+
+Login routing is role-based. After sign-in, users are redirected by role:
+
+- `manager` -> `/reception`
+- `cleaner` or `housekeeping` -> `/cleaner`
+- `maintenance` -> `/maintenance`
+- `cafeteria` or `kitchen` -> `/cafeteria`
+- `reception` or `receptionist` -> `/reception`
+- `customer` or `guest` -> `/customer`
+
+Role and profile resolution order used by the app:
+
+1. `public.profiles` row matching `auth.users.id`
+2. fallback to auth metadata (`user_metadata` / `app_metadata`)
+
+Recommended source of truth is `public.profiles` with columns:
+
+- `id` (uuid, same as `auth.users.id`)
+- `role`
+- `full_name`
+- `room_number`
+- `check_in_date`
+
+Optional metadata fallback keys used by UI:
+
+- `full_name` (or `name`)
+- `room_number`
+- `check_in_date` (ISO string)
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

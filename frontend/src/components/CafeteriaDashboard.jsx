@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Sidebar, { Icon } from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { apiGet, apiPost } from '../services/api';
@@ -464,11 +465,18 @@ const NAV = [
 ];
 
 export default function CafeteriaDashboard() {
+  const navigate = useNavigate();
   const { user: authUser, logout } = useAuth();
   const user = authUser || { id: 'CF-001', name: 'Cafeteria Staff', role: 'cafeteria' };
   const [activeSection, setActiveSection] = useState('orders');
 
-  const handleLogout = () => { logout?.(); window.location.href = '/login'; };
+  const handleLogout = async () => {
+    try {
+      await logout?.();
+    } finally {
+      navigate('/login', { replace: true });
+    }
+  };
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: '#f4f6ed' }}>

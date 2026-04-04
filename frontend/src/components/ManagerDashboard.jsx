@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { API_BASE_URL } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -142,6 +144,8 @@ function KeyModal({ onSubmit }) {
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function ManagerDashboard() {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [key, setKey] = useState(() => sessionStorage.getItem('mgr_key') || '');
   const [showKeyModal, setShowKeyModal] = useState(!sessionStorage.getItem('mgr_key'));
   const [summary, setSummary] = useState(null);
@@ -200,6 +204,15 @@ export default function ManagerDashboard() {
     setLegacy(null);
     setStatus('idle');
     setShowKeyModal(true);
+  };
+
+  const handleSignOut = async () => {
+    sessionStorage.removeItem('mgr_key');
+    try {
+      await logout?.();
+    } finally {
+      navigate('/login', { replace: true });
+    }
   };
 
   // ── Derived chart data ──
@@ -276,6 +289,13 @@ export default function ManagerDashboard() {
               className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:border-red-200 hover:text-red-500"
             >
               🔑 Change Key
+            </button>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:border-red-200 hover:text-red-500"
+            >
+              Sign Out
             </button>
           </div>
         </div>

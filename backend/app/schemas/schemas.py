@@ -102,6 +102,8 @@ class TaskFeedbackRecord(BaseModel):
     queue_name: str
     state: str
     note: Optional[str] = None
+    accepted_by: Optional[str] = None
+    accepted_at: Optional[datetime] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -197,6 +199,12 @@ class TaskFeedbackUpdateRequest(BaseModel):
     instruction_id: str
     queue_name: str
     state: str
+    note: Optional[str] = None
+    accepted_by: Optional[str] = None
+
+
+class CleanerAcceptTaskRequest(BaseModel):
+    instruction_id: str
     note: Optional[str] = None
 
 

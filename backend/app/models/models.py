@@ -61,6 +61,8 @@ class TaskFeedback(Base):
     queue_name = Column(String, index=True)
     state = Column(String, index=True)
     note = Column(String, default="")
+    accepted_by = Column(String, nullable=True, index=True)
+    accepted_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, default=_utcnow)
 
 

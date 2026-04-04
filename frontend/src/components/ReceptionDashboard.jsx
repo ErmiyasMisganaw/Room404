@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Sidebar, { Icon } from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { apiGet } from '../services/api';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const API = 'http://localhost:8000/api';
@@ -748,6 +750,7 @@ const NAV = [
 ];
 
 export default function ReceptionDashboard() {
+  const navigate = useNavigate();
   const { user: authUser, logout } = useAuth();
   const user = authUser || { id: 'RC-001', name: 'Front Desk', role: 'receptionist' };
   const [activeSection, setActiveSection] = useState('heatmap');
@@ -771,7 +774,13 @@ export default function ReceptionDashboard() {
     }, [updateRoomStatus])
   );
 
-  const handleLogout = () => { logout?.(); window.location.href = '/login'; };
+  const handleLogout = async () => {
+    try {
+      await logout?.();
+    } finally {
+      navigate('/login', { replace: true });
+    }
+  };
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: '#f4f6ed' }}>

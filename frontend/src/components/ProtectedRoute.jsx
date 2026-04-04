@@ -3,9 +3,16 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth, roleRouteMap } from '../context/AuthContext';
 
 export default function ProtectedRoute({ allowedRoles = [] }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
-  // Backend integration later: validate auth with server session/JWT before allowing route access.
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#0a1f0e] text-sm text-white/70">
+        Checking your session...
+      </div>
+    );
+  }
+
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
   }

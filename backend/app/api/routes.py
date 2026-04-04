@@ -20,6 +20,7 @@ from app.schemas.schemas import (
     CafeteriaCompleteTaskRequest,
     CafeteriaOrderData,
     ChatRequest,
+    CleanerAcceptTaskRequest,
     CustomerReplyData,
     DispatchRequest,
     DispatchResponse,
@@ -92,6 +93,21 @@ CATEGORY_TO_QUEUE = {
 }
 
 VALID_QUEUES = {"food", "maintenance", "cleaners", "manager", "ignore"}
+
+VALID_APP_ROLES = {"manager", "receptionist", "cleaner", "maintenance", "cafeteria", "customer"}
+
+ROLE_ALIASES = {
+    "manager": "manager",
+    "reception": "receptionist",
+    "receptionist": "receptionist",
+    "cleaner": "cleaner",
+    "housekeeping": "cleaner",
+    "maintenance": "maintenance",
+    "cafeteria": "cafeteria",
+    "kitchen": "cafeteria",
+    "customer": "customer",
+    "guest": "customer",
+}
 
 STATE_TO_TASK_STATUS = {
     "pending": "Pending",
@@ -220,6 +236,8 @@ def _feedback_to_schema(record: TaskFeedback) -> TaskFeedbackRecord:
         queue_name=record.queue_name,
         state=record.state,
         note=record.note,
+        accepted_by=record.accepted_by,
+        accepted_at=record.accepted_at,
         updated_at=record.updated_at,
     )
 
@@ -403,11 +421,44 @@ def _build_menu_response(db: Session, include_unavailable: bool) -> MenuResponse
     return MenuResponse(open=is_open, items=[_food_to_schema(item) for item in rows])
 
 
+def _normalize_role(value: str | None) -> str | None:
+    role = (value or "").strip().lower()
+    return ROLE_ALIASES.get(role)
+
+
+def _require_roles(*allowed_roles: str):
+    normalized_allowed = {_normalize_role(role) for role in allowed_roles}
+    normalized_allowed.discard(None)
+
+    invalid_roles = [role for role in normalized_allowed if role not in VALID_APP_ROLES]
+    if invalid_roles:
+        raise ValueError(f"Invalid allowed roles: {invalid_roles}")
+
+    allowed_for_message = ", ".join(sorted(normalized_allowed))
+
+    def _dependency(
+        x_user_role: str | None = Header(default=None, alias="x-user-role"),
+        x_manager_key: str | None = Header(default=None, alias="x-manager-key"),
+    ) -> None:
+        if x_manager_key == MANAGER_DASHBOARD_KEY:
+            return
+
+        role = _normalize_role(x_user_role)
+        if role in normalized_allowed:
+            return
+
+        raise HTTPException(
+            status_code=403,
+            detail=f"Access denied. Required role: {allowed_for_message}.",
+        )
+
+    return _dependency
+
+
 def _require_manager_access(
-    x_manager_key: str | None = Header(default=None, alias="x-manager-key"),
+    _: None = Depends(_require_roles("manager", "receptionist")),
 ) -> None:
-    if x_manager_key != MANAGER_DASHBOARD_KEY:
-        raise HTTPException(status_code=403, detail="Manager access denied.")
+    return None
 
 
 def _extract_maintenance_type(text: str) -> str:
@@ -949,6 +1000,7 @@ def upsert_task_feedback(payload: TaskFeedbackUpdateRequest, db: Session = Depen
     normalized_queue = _normalize_queue(payload.queue_name)
     normalized_state = _normalize_state(payload.state)
     now = _utcnow()
+    accepted_by = (payload.accepted_by or "").strip().lower() or None
 
     record = (
         db.query(TaskFeedback)
@@ -959,6 +1011,10 @@ def upsert_task_feedback(payload: TaskFeedbackUpdateRequest, db: Session = Depen
         record.queue_name = normalized_queue
         record.state = normalized_state
         record.note = payload.note or ""
+        if accepted_by:
+            record.accepted_by = accepted_by
+            if record.accepted_at is None:
+                record.accepted_at = now
         record.updated_at = now
     else:
         record = TaskFeedback(
@@ -966,6 +1022,8 @@ def upsert_task_feedback(payload: TaskFeedbackUpdateRequest, db: Session = Depen
             queue_name=normalized_queue,
             state=normalized_state,
             note=payload.note or "",
+            accepted_by=accepted_by,
+            accepted_at=now if accepted_by else None,
             updated_at=now,
         )
         db.add(record)
@@ -989,6 +1047,48 @@ def upsert_task_feedback(payload: TaskFeedbackUpdateRequest, db: Session = Depen
     db.commit()
     db.refresh(record)
     return _feedback_to_schema(record)
+
+
+@router.post("/cleaners/accept-task", response_model=TaskFeedbackRecord)
+def accept_cleaner_task(
+    payload: CleanerAcceptTaskRequest,
+    _: None = Depends(_require_roles("cleaner", "manager", "receptionist")),
+    x_user_email: str | None = Header(default=None, alias="x-user-email"),
+    db: Session = Depends(get_db),
+) -> TaskFeedbackRecord:
+    cleaner_email = (x_user_email or "").strip().lower()
+    if not cleaner_email:
+        raise HTTPException(status_code=400, detail="x-user-email header is required to accept a task.")
+
+    instruction = (
+        db.query(RoutedInstruction)
+        .filter(RoutedInstruction.instruction_id == payload.instruction_id)
+        .first()
+    )
+    if not instruction or instruction.queue_name != "cleaners":
+        raise HTTPException(status_code=404, detail="Cleaner instruction not found.")
+
+    existing_feedback = (
+        db.query(TaskFeedback)
+        .filter(TaskFeedback.instruction_id == payload.instruction_id)
+        .first()
+    )
+    existing_owner = (existing_feedback.accepted_by or "").strip().lower() if existing_feedback else ""
+    if existing_owner and existing_owner != cleaner_email and existing_feedback.state in {"pending", "in_progress"}:
+        raise HTTPException(status_code=409, detail="Task already accepted by another cleaner.")
+
+    note = payload.note or f"Accepted by cleaner {cleaner_email}."
+
+    return upsert_task_feedback(
+        TaskFeedbackUpdateRequest(
+            instruction_id=payload.instruction_id,
+            queue_name="cleaners",
+            state="pending",
+            note=note,
+            accepted_by=cleaner_email,
+        ),
+        db,
+    )
 
 
 @router.get("/feedback/task-state/{instruction_id}", response_model=TaskFeedbackRecord)
@@ -1205,6 +1305,8 @@ def get_analytics(
     db: Session = Depends(get_db),
 ) -> dict:
     tasks = db.query(Task).all()
+    routed_rows = db.query(RoutedInstruction).all()
+    staff_rows = db.query(StaffMember).all()
 
     by_category: dict[str, int] = {}
     by_status: dict[str, int] = {}
@@ -1221,6 +1323,27 @@ def get_analytics(
     cleaning_needed = sum(1 for r in rooms if r.status == "Cleaning Needed")
     occupancy_rate = round(occupied / total_rooms * 100, 1) if total_rooms else 0.0
 
+    open_requests_by_queue = {
+        queue: sum(
+            1
+            for row in routed_rows
+            if row.queue_name == queue and row.status in {"pending", "in_progress"}
+        )
+        for queue in sorted(VALID_QUEUES)
+    }
+    task_counts_by_role = {
+        "manager": by_category.get("Manager", 0),
+        "receptionist": len(routed_rows),
+        "cleaner": by_category.get("Cleaners", 0) + by_category.get("Workers", 0),
+        "maintenance": by_category.get("Maintenance", 0),
+        "cafeteria": by_category.get("Food", 0),
+        "customer": occupied,
+    }
+    staff_pool_counts = {
+        "cleaners": sum(1 for staff in staff_rows if (staff.pool or "").strip().lower() == "cleaners"),
+        "maintenance": sum(1 for staff in staff_rows if (staff.pool or "").strip().lower() == "maintenance"),
+    }
+
     return {
         "total_tasks": len(tasks),
         "by_category": by_category,
@@ -1230,4 +1353,7 @@ def get_analytics(
         "occupied_rooms": occupied,
         "cleaning_needed": cleaning_needed,
         "occupancy_rate": occupancy_rate,
+        "open_requests_by_queue": open_requests_by_queue,
+        "task_counts_by_role": task_counts_by_role,
+        "staff_pool_counts": staff_pool_counts,
     }

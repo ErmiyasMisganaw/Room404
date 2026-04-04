@@ -29,7 +29,7 @@ function Toast({ toasts, onDismiss }) {
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, isLoading, authError } = useAuth();
   const [form, setForm] = useState({ identifier: '', password: '' });
   const [showPw, setShowPw] = useState(false);
   const [errors, setErrors] = useState({});
@@ -50,8 +50,10 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isLoading) return;
+
     const next = {};
-    if (!form.identifier.trim()) next.identifier = 'Username is required';
+    if (!form.identifier.trim()) next.identifier = 'Email is required';
     if (!form.password.trim()) next.password = 'Password is required';
     if (Object.keys(next).length) { setErrors(next); return; }
     try {

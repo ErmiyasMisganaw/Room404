@@ -11,6 +11,11 @@ export default function App() {
 
   useEffect(() => {
     async function getTodos() {
+      if (!supabase) {
+        setTodos([]);
+        return;
+      }
+
       const { data } = await supabase.from('todos').select('id, name');
 
       if (data) {
