@@ -1,10 +1,35 @@
 const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
+const AUTH_HEADER_STORAGE_KEY = 'room404.auth-context';
+
+function getAuthHeaders() {
+  try {
+    const raw = localStorage.getItem(AUTH_HEADER_STORAGE_KEY);
+    if (!raw) return {};
+
+    const parsed = JSON.parse(raw);
+    const headers = {};
+
+    if (parsed?.role) {
+      headers['x-user-role'] = `${parsed.role}`;
+    }
+
+    if (parsed?.email) {
+      headers['x-user-email'] = `${parsed.email}`;
+    }
+
+    return headers;
+  } catch {
+    return {};
+  }
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeaders(),
       ...(options.headers || {}),
     },
     ...options,

@@ -21,7 +21,7 @@ function Toast({ toasts, onDismiss }) {
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, isLoading, authError } = useAuth();
   const [form, setForm] = useState({ identifier: '', password: '' });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -41,17 +41,25 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isLoading) return;
+
     const next = {};
-    if (!form.identifier.trim()) next.identifier = 'Username is required';
+    if (!form.identifier.trim()) next.identifier = 'Email is required';
     if (!form.password.trim()) next.password = 'Password is required';
     if (Object.keys(next).length) { setErrors(next); return; }
 
+    const normalizedEmail = form.identifier.trim();
+
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      setErrors((prev) => ({ ...prev, identifier: 'Enter a valid email address' }));
+      return;
+    }
+
     try {
       setLoading(true);
-      // Role is determined by backend — pass empty string, AuthContext will handle routing
-      const result = await login({ identifier: form.identifier, password: form.password });
+      const result = await login({ identifier: normalizedEmail, password: form.password });
       if (!result.success) { pushToast(result.message || 'Invalid credentials.', 'error'); return; }
-      pushToast(`Welcome back, ${form.identifier}!`, 'success');
+      pushToast(`Welcome back, ${normalizedEmail}!`, 'success');
       setTimeout(() => navigate(result.redirectTo, { replace: true }), 600);
     } catch {
       pushToast('Something went wrong. Please try again.', 'error');
@@ -89,20 +97,26 @@ export default function Login() {
             <h2 className="mb-1 text-lg font-semibold text-white">Sign in</h2>
             <p className="mb-6 text-xs text-white/40">Enter your credentials to access your account</p>
 
+            {authError && (
+              <div className="mb-4 rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                {authError}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} noValidate className="space-y-4">
               <div>
                 <label htmlFor="identifier" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-white/40">
-                  Username
+                  Email
                 </label>
                 <input
                   id="identifier"
                   name="identifier"
-                  type="text"
-                  autoComplete="username"
+                  type="email"
+                  autoComplete="email"
                   autoFocus
                   value={form.identifier}
                   onChange={handleChange}
-                  placeholder="Enter your username"
+                  placeholder="Enter your email"
                   className={`w-full rounded-xl border bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/20 focus:bg-white/8 focus:ring-2 ${
                     errors.identifier
                       ? 'border-red-400/50 focus:ring-red-400/20'
@@ -135,11 +149,11 @@ export default function Login() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || isLoading}
                 className="mt-2 flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#9bc23c] px-4 py-3.5 text-sm font-bold text-[#0a1f0e] shadow-lg shadow-[#9bc23c]/25 transition-all hover:bg-[#b4d655] hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#0a1f0e]/20 border-t-[#0a1f0e]" />}
-                {loading ? 'Signing in...' : 'Sign In'}
+                {loading ? 'Signing in...' : isLoading ? 'Checking session...' : 'Sign In'}
               </button>
             </form>
           </div>

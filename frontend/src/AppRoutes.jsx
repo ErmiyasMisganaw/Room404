@@ -52,7 +52,15 @@ function PreviewEntryPoints() {
 }
 
 function LoginRouteGate() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#0a1f0e] text-sm text-white/70">
+        Checking your session...
+      </div>
+    );
+  }
 
   if (isAuthenticated && user) {
     const redirectPath = roleRouteMap[user.role] || '/login';
@@ -91,7 +99,7 @@ export default function AppRoutes() {
             <Route path="/cafeteria" element={<CafeteriaDashboard />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={['receptionist']} />}>
+          <Route element={<ProtectedRoute allowedRoles={['receptionist', 'manager']} />}>
             <Route path="/reception" element={<ReceptionDashboard />} />
             <Route path="/reception/api" element={<ApiWorkbench />} />
           </Route>

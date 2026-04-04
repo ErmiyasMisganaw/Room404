@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Sidebar, { Icon } from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { apiGet } from '../services/api';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const API = 'http://localhost:8000/api';
@@ -437,8 +438,8 @@ function AnalyticsSection({ rooms }) {
       setLoading(true);
       try {
         const [res, lb] = await Promise.all([
-          fetch(`${API}/analytics`).then((r) => r.ok ? r.json() : null).catch(() => null),
-          fetch(`${API}/staff/leaderboard`).then((r) => r.ok ? r.json() : []).catch(() => []),
+          apiGet('/api/analytics').catch(() => null),
+          apiGet('/api/staff/leaderboard').catch(() => []),
         ]);
         setData(res);
         setLeaderboard(Array.isArray(lb) ? lb : lb?.staff || []);

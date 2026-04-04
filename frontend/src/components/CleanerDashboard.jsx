@@ -65,7 +65,7 @@ const fallbackQueue = [
   { id: 'q-2', roomNumber: '407', etaMinutes: 40, status: 'Pending', assignedCleaners: [] },
 ];
 
-function useTasks(cleanerName) {
+function useTasks(cleanerName, cleanerEmail = '') {
   const [assignedTasks, setAssignedTasks] = useState(fallbackAssigned);
   const [availableRooms, setAvailableRooms] = useState(fallbackQueue);
 
@@ -78,21 +78,48 @@ function useTasks(cleanerName) {
         apiGet('/api/inbox/cleaners'),
         apiGet('/api/feedback/task-state/queue/cleaners'),
       ]);
+
+      const normalizedCleanerEmail = (cleanerEmail || '').trim().toLowerCase();
       const fMap = new Map((feedback.items || []).map((f) => [f.instruction_id, f]));
       const all = (inbox.items || []).map((item) => {
         const fb = fMap.get(item.instruction_id);
+        const acceptedBy = (fb?.accepted_by || '').trim().toLowerCase();
+        const acceptedByMe = Boolean(acceptedBy && normalizedCleanerEmail && acceptedBy === normalizedCleanerEmail);
+        const acceptedByOther = Boolean(acceptedBy && normalizedCleanerEmail && acceptedBy !== normalizedCleanerEmail);
+
+        if (acceptedByOther) {
+          return null;
+        }
+
+        const normalizedState = (fb?.state || 'pending').trim().toLowerCase();
+        const displayStatus = normalizedState === 'in_progress'
+          ? 'In Progress'
+          : normalizedState === 'completed'
+            ? 'Completed'
+            : 'Pending';
+
         return {
           id: item.instruction_id,
           roomNumber: toRoom(item.staff_instruction, item.instruction_id),
           etaMinutes: toEta(item.priority),
-          status: fb?.state || 'Pending',
+          status: displayStatus,
+          assignedToMe: acceptedByMe,
           assignedCleaners: [cleanerName],
           rawInstruction: item.staff_instruction,
           priority: item.priority,
         };
       });
-      setAssignedTasks(all.filter((t) => t.status !== 'Pending'));
-      setAvailableRooms(all.filter((t) => t.status === 'Pending').map((t) => ({ ...t, assignedCleaners: [] })));
+      const validItems = all.filter(Boolean);
+      setAssignedTasks(
+        validItems.filter(
+          (task) => task.assignedToMe || (task.status !== 'Pending' && task.status !== 'pending')
+        )
+      );
+      setAvailableRooms(
+        validItems
+          .filter((task) => !task.assignedToMe && (task.status === 'Pending' || task.status === 'pending'))
+          .map((task) => ({ ...task, assignedCleaners: [] }))
+      );
     } catch {
       /* keep fallback */
     }
@@ -100,20 +127,19 @@ function useTasks(cleanerName) {
 
   useEffect(() => { refresh(); const id = setInterval(refresh, 15000); return () => clearInterval(id); }, []);
 
-  const takeTask = (queueTaskId) => {
-    setAvailableRooms((prev) => {
-      const room = prev.find((r) => r.id === queueTaskId);
-      if (!room) return prev;
-      setAssignedTasks((t) => [...t, { ...room, status: 'Pending', assignedCleaners: [cleanerName] }]);
-      return prev.filter((r) => r.id !== queueTaskId);
+  const acceptTask = async (instructionId) => {
+    await apiPost('/api/cleaners/accept-task', {
+      instruction_id: instructionId,
+      note: `Accepted by ${cleanerName}`,
     });
+    await refresh();
   };
 
   const updateStatus = (taskId, nextStatus) => {
     setAssignedTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: nextStatus } : t));
   };
 
-  return { assignedTasks, availableRooms, takeTask, updateStatus, refresh };
+  return { assignedTasks, availableRooms, acceptTask, updateStatus, refresh };
 }
 
 // ── Status Badge ──────────────────────────────────────────────────────────────
@@ -188,7 +214,7 @@ function TaskCard({ task, disabled, onConfirm, loadingId }) {
 }
 
 function MyTasksSection({ user }) {
-  const { assignedTasks, updateStatus, refresh } = useTasks(user?.name || 'You');
+  const { assignedTasks, updateStatus, refresh } = useTasks(user?.name || 'You', user?.email || '');
   const { remainingSeconds, isCoolingDown, startCooldown } = useCooldown(90);
   const [loadingId, setLoadingId] = useState('');
   const [toasts, setToasts] = useState([]);
@@ -281,7 +307,7 @@ function MyTasksSection({ user }) {
 // ── Room Queue Section ────────────────────────────────────────────────────────
 
 function QueueSection({ user }) {
-  const { availableRooms, takeTask, refresh } = useTasks(user?.name || 'You');
+  const { availableRooms, acceptTask, refresh } = useTasks(user?.name || 'You', user?.email || '');
   const [loadingId, setLoadingId] = useState('');
   const [toasts, setToasts] = useState([]);
 
@@ -294,9 +320,8 @@ function QueueSection({ user }) {
   const handleTake = async (roomId) => {
     try {
       setLoadingId(roomId);
-      await new Promise((r) => setTimeout(r, 700));
-      takeTask(roomId);
-      pushToast('Task assigned to you.', 'success');
+      await acceptTask(roomId);
+      pushToast('Task accepted and moved to My Tasks.', 'success');
     } catch {
       pushToast('Failed to assign task.', 'error');
     } finally {
@@ -386,7 +411,7 @@ function ChartTooltip({ active, payload, label }) {
 // ── Analytics Section ─────────────────────────────────────────────────────────
 
 function AnalyticsSection({ user }) {
-  const { assignedTasks } = useTasks(user?.name || 'You');
+  const { assignedTasks } = useTasks(user?.name || 'You', user?.email || '');
   const [analyticsData, setAnalyticsData] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
 
