@@ -66,100 +66,66 @@ const NAV_ITEMS = [
   { key: 'payments', label: 'Payments',        Icon: RiBankCardLine },
 ];
 
-function Navbar({ active, onNav, user, onLogout, transparent }) {
+function Navbar({ active, onNav, user, onLogout }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const base = transparent
-    ? 'absolute top-0 left-0 right-0 z-50 bg-transparent'
-    : 'sticky top-0 z-50 bg-[#0d2414]/95 backdrop-blur-md shadow-lg';
-
   return (
-    <nav className={`${base} transition-all duration-300`}>
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-
-        {/* Logo */}
-        <button type="button" onClick={() => onNav('home')} className="flex items-center gap-3 group">
-          <img src="/kuriftulogo.jpg" alt="Kuriftu" className="h-9 w-9 rounded-lg object-cover shadow-md ring-1 ring-white/20" />
+    <nav className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#0d2414' }}>
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3.5">
+        <button type="button" onClick={() => onNav('home')} className="flex items-center gap-3">
+          <img src="/kuriftulogo.jpg" alt="Kuriftu" className="h-9 w-9 rounded-lg object-cover ring-1 ring-white/10" />
           <div className="hidden sm:block">
-            <p style={{ fontFamily: 'Georgia, serif', letterSpacing: '0.08em', fontSize: '0.95rem' }}
-              className="font-semibold text-white leading-tight tracking-wide">
-              KURIFTU
-            </p>
-            <p className="text-[9px] text-[#9bc23c] uppercase tracking-[0.25em] font-medium">Resort & Spa</p>
+            <p className="text-white text-sm font-semibold tracking-[0.1em]" style={{ fontFamily: 'Georgia, serif' }}>KURIFTU</p>
+            <p className="text-[#9bc23c] text-[9px] uppercase tracking-[0.28em] font-semibold">Resort & Spa</p>
           </div>
         </button>
 
-        {/* Desktop nav */}
-        <div className="hidden md:flex items-center gap-1">
-          {NAV_ITEMS.map(({ key, label, Icon }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => onNav(key)}
-              className={`relative flex items-center gap-1.5 px-4 py-2 text-xs font-medium tracking-widest uppercase transition-all duration-200 rounded-lg ${
-                active === key
-                  ? 'text-[#9bc23c]'
-                  : 'text-white/60 hover:text-white'
-              }`}
-              style={{ letterSpacing: '0.1em' }}
-            >
-              <Icon className="text-sm flex-shrink-0" />
+        <div className="hidden md:flex items-center gap-0.5">
+          {NAV_ITEMS.map(({ key, label }) => (
+            <button key={key} type="button" onClick={() => onNav(key)}
+              className={`relative px-4 py-2 text-xs font-medium tracking-[0.1em] uppercase transition-all duration-150 rounded-lg ${
+                active === key ? 'text-[#9bc23c]' : 'text-white/50 hover:text-white'
+              }`}>
               {label}
-              {active === key && (
-                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-4 rounded-full bg-[#9bc23c]" />
-              )}
+              {active === key && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-4 rounded-full bg-[#9bc23c]" />}
             </button>
           ))}
         </div>
 
-        {/* Right side */}
         <div className="flex items-center gap-3">
           <div className="hidden sm:flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#9bc23c] text-[#0d2414] text-xs font-bold shadow">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#9bc23c] text-[#0d2414] text-xs font-bold">
               {(user?.name || 'G')[0].toUpperCase()}
             </div>
             <div className="hidden lg:block">
               <p className="text-xs font-semibold text-white leading-tight">{user?.name}</p>
-              <p className="text-[10px] text-white/40 tracking-wide">Room {user?.roomNumber || '—'}</p>
+              <p className="text-[10px] text-white/35">Room {user?.roomNumber || '—'}</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onLogout}
-            className="hidden sm:flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-[10px] font-medium text-white/50 uppercase tracking-widest transition hover:border-red-400/40 hover:text-red-400"
-          >
-            <RiLogoutBoxRLine className="text-sm" />
+          <button type="button" onClick={onLogout}
+            className="hidden sm:flex items-center rounded-lg border border-white/10 px-3 py-1.5 text-[10px] font-medium text-white/40 uppercase tracking-widest transition hover:border-red-400/30 hover:text-red-400">
             Sign out
           </button>
           <button type="button" onClick={() => setMenuOpen((p) => !p)}
-            className="flex md:hidden h-9 w-9 items-center justify-center rounded-lg border border-white/15 text-white/70 transition hover:text-white">
+            className="flex md:hidden h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-white/60 transition hover:text-white">
             {menuOpen ? <RiCloseLine className="text-lg" /> : <RiMenuLine className="text-lg" />}
           </button>
         </div>
       </div>
 
-      {/* Mobile drawer */}
       {menuOpen && (
-        <div className="border-t border-white/10 bg-[#0d2414]/98 backdrop-blur-md px-6 pb-5 md:hidden">
-          <div className="mt-4 flex flex-col gap-1">
-            {NAV_ITEMS.map(({ key, label, Icon }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => { onNav(key); setMenuOpen(false); }}
-                className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-left transition ${
-                  active === key
-                    ? 'bg-[#9bc23c]/15 text-[#9bc23c]'
-                    : 'text-white/60 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <Icon className="text-base" />
+        <div className="border-t border-white/8 px-6 pb-4 md:hidden" style={{ backgroundColor: '#0d2414' }}>
+          <div className="mt-3 flex flex-col gap-0.5">
+            {NAV_ITEMS.map(({ key, label }) => (
+              <button key={key} type="button" onClick={() => { onNav(key); setMenuOpen(false); }}
+                className={`rounded-lg px-4 py-2.5 text-sm font-medium text-left transition ${
+                  active === key ? 'bg-white/8 text-[#9bc23c]' : 'text-white/50 hover:text-white hover:bg-white/5'
+                }`}>
                 {label}
               </button>
             ))}
             <button type="button" onClick={onLogout}
-              className="mt-2 flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-left text-red-400/70 hover:text-red-400 hover:bg-red-400/5 transition">
-              <RiLogoutBoxRLine className="text-base" />
+              className="mt-1 rounded-lg px-4 py-2.5 text-sm font-medium text-left text-red-400/60 hover:text-red-400 hover:bg-red-400/5 transition">
               Sign out
             </button>
           </div>
@@ -246,9 +212,9 @@ function HeroCanvas({ user }) {
         </div>
       </div>
 
-      {/* Bottom fade into page background */}
+      {/* Bottom fade into cream background */}
       <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-24"
-        style={{ background: 'linear-gradient(to top, #f7f9f2, transparent)' }} />
+        style={{ background: 'linear-gradient(to top, #faf8f4, transparent)' }} />
     </div>
   );
 }
@@ -347,58 +313,54 @@ const AMENITIES = [
 function RoomDetails({ user }) {
   const checkIn = user?.checkInDate ? new Date(user.checkInDate) : new Date(Date.now() - 2 * 86400000);
   return (
-    <div className="mx-auto max-w-7xl px-6 py-14">
-      {/* Section label */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="h-px flex-1 bg-gray-200" />
-        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-gray-400">Your Stay</p>
-        <div className="h-px flex-1 bg-gray-200" />
+    <div className="mx-auto max-w-7xl px-6 py-14" style={{ backgroundColor: '#faf8f4' }}>
+      <div className="flex items-center gap-3 mb-10">
+        <div className="h-px flex-1" style={{ backgroundColor: '#e0d8cc' }} />
+        <p className="text-[10px] font-bold uppercase tracking-[0.28em]" style={{ color: '#b8a898' }}>Your Stay</p>
+        <div className="h-px flex-1" style={{ backgroundColor: '#e0d8cc' }} />
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 items-center">
-        {/* Left — room image */}
+        {/* Room image */}
         <div className="relative overflow-hidden rounded-2xl shadow-xl" style={{ height: 280 }}>
           <img src="/room.jpg" alt="Your room" className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0d2414]/80 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#1a0e06]/80 via-transparent to-transparent" />
           <div className="absolute bottom-5 left-6 right-6">
             <p className="text-white font-semibold text-base" style={{ fontFamily: 'Georgia, serif' }}>
               Deluxe Suite · Room {user?.roomNumber || '212'}
             </p>
             <p className="text-white/50 text-xs mt-1 tracking-wide">King bed · Garden view · 45 m²</p>
           </div>
-          <span className="absolute top-4 right-4 rounded-full bg-[#9bc23c] px-3 py-1 text-[10px] font-bold text-[#0d2414] uppercase tracking-wider shadow">
-            Active
-          </span>
+          <span className="absolute top-4 right-4 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider shadow"
+            style={{ backgroundColor: '#9bc23c', color: '#0d2414' }}>Active</span>
         </div>
 
-        {/* Right — details */}
+        {/* Details */}
         <div>
-          {/* Check-in info */}
           <div className="flex gap-4 mb-6">
             {[
               { label: 'Check-in', value: checkIn.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) },
               { label: 'Check-out', value: '11:00 AM' },
               { label: 'Guests', value: '2 Adults' },
             ].map((s) => (
-              <div key={s.label} className="flex-1 border-l-2 border-[#9bc23c]/40 pl-3">
-                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">{s.label}</p>
-                <p className="text-sm font-semibold text-[#0d2414]">{s.value}</p>
+              <div key={s.label} className="flex-1 pl-3" style={{ borderLeft: '2px solid #9bc23c' }}>
+                <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: '#b8a898' }}>{s.label}</p>
+                <p className="text-sm font-semibold" style={{ color: '#2c1a0e' }}>{s.value}</p>
               </div>
             ))}
           </div>
 
-          {/* Amenities */}
           <div className="grid grid-cols-3 gap-3">
             {AMENITIES.map(({ Icon, label, detail }) => (
-              <div key={label} className="flex flex-col items-center gap-1.5 rounded-xl border border-gray-100 bg-white p-3 text-center shadow-sm">
-                <Icon className="text-xl text-[#9bc23c]" />
-                <p className="text-[11px] font-semibold text-[#0d2414] leading-tight">{label}</p>
-                <p className="text-[10px] text-gray-400">{detail}</p>
+              <div key={label} className="flex flex-col items-center gap-1.5 rounded-xl p-3 text-center border"
+                style={{ backgroundColor: '#fff', borderColor: '#e8e0d4' }}>
+                <Icon className="text-xl" style={{ color: '#9bc23c' }} />
+                <p className="text-[11px] font-semibold leading-tight" style={{ color: '#2c1a0e' }}>{label}</p>
+                <p className="text-[10px]" style={{ color: '#b8a898' }}>{detail}</p>
               </div>
             ))}
           </div>
 
-          {/* Policies row */}
           <div className="mt-4 flex flex-wrap gap-2">
             {[
               { label: 'Pool', value: '8AM–8PM' },
@@ -406,9 +368,10 @@ function RoomDetails({ user }) {
               { label: 'Breakfast', value: '7–10AM' },
               { label: 'Bar', value: '4–11PM' },
             ].map((p) => (
-              <div key={p.label} className="flex items-center gap-1.5 rounded-full bg-gray-50 border border-gray-100 px-3 py-1.5 text-xs">
-                <span className="text-gray-400">{p.label}</span>
-                <span className="font-semibold text-[#0d2414]">{p.value}</span>
+              <div key={p.label} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs border"
+                style={{ backgroundColor: '#fff', borderColor: '#e8e0d4' }}>
+                <span style={{ color: '#b8a898' }}>{p.label}</span>
+                <span className="font-semibold" style={{ color: '#2c1a0e' }}>{p.value}</span>
               </div>
             ))}
           </div>
@@ -422,37 +385,32 @@ function RoomDetails({ user }) {
 
 function Footer() {
   return (
-    <footer style={{ backgroundColor: '#0d2414' }} className="mt-auto">
+    <footer style={{ backgroundColor: '#1a0e06' }} className="mt-auto">
       <div className="mx-auto max-w-7xl px-6 py-10">
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
-          {/* Brand */}
           <div className="flex items-center gap-3">
-            <img src="/kuriftulogo.jpg" alt="Kuriftu" className="h-8 w-8 rounded-lg object-cover opacity-90" />
+            <img src="/kuriftulogo.jpg" alt="Kuriftu" className="h-8 w-8 rounded-lg object-cover opacity-80" />
             <div>
-              <p className="text-white text-sm font-semibold tracking-widest uppercase" style={{ fontFamily: 'Georgia, serif' }}>Kuriftu</p>
-              <p className="text-white/30 text-[10px] tracking-widest uppercase">Resort & Spa</p>
+              <p className="text-sm font-semibold tracking-widest uppercase" style={{ fontFamily: 'Georgia, serif', color: '#f5ede0' }}>Kuriftu</p>
+              <p className="text-[10px] tracking-widest uppercase" style={{ color: '#9bc23c' }}>Resort & Spa</p>
             </div>
           </div>
-
-          {/* Contact */}
-          <div className="flex items-center gap-5 text-xs text-white/40">
-            <span className="flex items-center gap-1.5"><RiPhoneLine className="text-[#9bc23c]" /> +251 11 123 4567</span>
-            <span className="flex items-center gap-1.5"><RiMapPinLine className="text-[#9bc23c]" /> Bishoftu, Ethiopia</span>
+          <div className="flex items-center gap-5 text-xs" style={{ color: '#7a6a5a' }}>
+            <span className="flex items-center gap-1.5"><RiPhoneLine style={{ color: '#9bc23c' }} /> +251 11 123 4567</span>
+            <span className="flex items-center gap-1.5"><RiMapPinLine style={{ color: '#9bc23c' }} /> Bishoftu, Ethiopia</span>
           </div>
-
-          {/* Social */}
           <div className="flex items-center gap-3">
             {[RiInstagramLine, RiFacebookBoxLine, RiTwitterXLine].map((Icon, i) => (
               <button key={i} type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-white/40 transition hover:border-[#9bc23c]/50 hover:text-[#9bc23c]">
+                className="flex h-8 w-8 items-center justify-center rounded-full border transition"
+                style={{ borderColor: 'rgba(255,255,255,0.08)', color: '#7a6a5a' }}>
                 <Icon className="text-sm" />
               </button>
             ))}
           </div>
         </div>
-
-        <div className="mt-8 border-t border-white/8 pt-6 text-center">
-          <p className="text-[10px] text-white/20 tracking-widest uppercase">
+        <div className="mt-8 pt-6 text-center" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <p className="text-[10px] tracking-widest uppercase" style={{ color: '#4a3a2a' }}>
             © {new Date().getFullYear()} Kuriftu Resort & Spa · All rights reserved
           </p>
         </div>
@@ -465,26 +423,26 @@ function Footer() {
 
 function HomePage({ user }) {
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f7f9f2' }}>
-      {/* Hero — full bleed, no extra buttons */}
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#faf8f4' }}>
+      {/* Hero */}
       <HeroCanvas user={user} />
 
       {/* Services carousel */}
       <div className="mx-auto w-full max-w-7xl px-10 py-14">
         <div className="mb-8 flex items-end justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#9bc23c] mb-1">Explore</p>
-            <h2 className="text-2xl font-semibold text-[#0d2414]" style={{ fontFamily: 'Georgia, serif' }}>
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] mb-1" style={{ color: '#9bc23c' }}>Explore</p>
+            <h2 className="text-2xl font-semibold" style={{ fontFamily: 'Georgia, serif', color: '#2c1a0e' }}>
               Resort Amenities
             </h2>
           </div>
-          <p className="text-xs text-gray-400 hidden sm:block">Swipe to explore</p>
+          <p className="text-xs text-stone-400 hidden sm:block tracking-wide">Drag to explore</p>
         </div>
         <ServicesCarousel />
       </div>
 
       {/* Room details */}
-      <div className="border-t border-gray-100">
+      <div className="border-t" style={{ borderColor: '#e8e0d4' }}>
         <RoomDetails user={user} />
       </div>
 
@@ -1196,13 +1154,10 @@ export default function CustomerDashboard() {
 
   return (
     <div className="min-h-screen font-sans" style={{ backgroundColor: '#f7f9f2' }}>
-      {/* Navbar overlays hero on home, solid on other pages */}
-      {activePage === 'home'
-        ? <Navbar active={activePage} onNav={setActivePage} user={user} onLogout={handleLogout} transparent />
-        : <Navbar active={activePage} onNav={setActivePage} user={user} onLogout={handleLogout} />
-      }
+      {/* Navbar — always sage background, aligned with all pages */}
+      <Navbar active={activePage} onNav={setActivePage} user={user} onLogout={handleLogout} />
 
-      <div key={activePage} style={{ marginTop: activePage === 'home' ? '-73px' : 0 }}>
+      <div key={activePage}>
         {activePage === 'home'     && <HomePage user={user} />}
         {activePage === 'food'     && <FoodPage user={user} cart={cart} setCart={setCart} onOrderPlaced={handleOrderPlaced} />}
         {activePage === 'services' && <GuestServicesPage user={user} onRequestSent={handleRequestSent} />}
