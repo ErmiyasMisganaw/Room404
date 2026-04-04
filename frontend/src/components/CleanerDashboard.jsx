@@ -57,14 +57,8 @@ function useCooldown(initialSeconds = 90) {
   };
 }
 
-const fallbackAssigned = [
-  { id: 'task-1', roomNumber: '302', etaMinutes: 20, status: 'In Progress', assignedCleaners: ['You'] },
-  { id: 'task-2', roomNumber: '115', etaMinutes: 35, status: 'Pending', assignedCleaners: ['You'] },
-];
-const fallbackQueue = [
-  { id: 'q-1', roomNumber: '210', etaMinutes: 25, status: 'Pending', assignedCleaners: [] },
-  { id: 'q-2', roomNumber: '407', etaMinutes: 40, status: 'Pending', assignedCleaners: [] },
-];
+const fallbackAssigned = [];
+const fallbackQueue = [];
 
 function useTasks(cleanerName, cleanerEmail = '') {
   const [assignedTasks, setAssignedTasks] = useState(fallbackAssigned);

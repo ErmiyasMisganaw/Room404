@@ -3,10 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar, { Icon } from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
-import { apiGet } from '../services/api';
+import { apiGet, apiPost } from '../services/api';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-
-const API = 'http://localhost:8000/api';
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
@@ -115,17 +113,12 @@ function HeatmapSection({ rooms, wsConnected, pushToast, onCheckout }) {
   const handleCheckout = async (roomNumber) => {
     try {
       setCheckoutLoading(roomNumber);
-      const res = await fetch(`${API}/rooms/${roomNumber}/checkout`, { method: 'POST' });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        pushToast(err.detail || 'Checkout failed.', 'error');
-        return;
-      }
+      await apiPost(`/api/rooms/${roomNumber}/checkout`, {});
       onCheckout?.(roomNumber, 'Cleaning Needed');
       pushToast(`Room ${roomNumber} checked out — cleaning task created.`, 'success');
-    } catch {
-      onCheckout?.(roomNumber, 'Cleaning Needed');
-      pushToast(`Room ${roomNumber} checked out (offline).`, 'success');
+    } catch (error) {
+      const detail = typeof error?.message === 'string' ? error.message : '';
+      pushToast(detail || 'Checkout failed.', 'error');
     } finally {
       setCheckoutLoading('');
     }
@@ -537,7 +530,7 @@ function AnalyticsSection({ rooms }) {
       try {
         const [res, lb] = await Promise.all([
           Promise.resolve(null), // analytics removed — use /manager for analytics
-          fetch(`${API}/staff/leaderboard`).then((r) => r.ok ? r.json() : []).catch(() => []),
+          apiGet('/api/staff/leaderboard').catch(() => []),
         ]);
         setData(res);
         setLeaderboard(Array.isArray(lb) ? lb : lb?.staff || []);
