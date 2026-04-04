@@ -57,6 +57,27 @@ export default function Login() {
     setErrors((p) => ({ ...p, [name]: '' }));
   };
 
+  const copyToClipboard = async (value, label) => {
+    const text = `${value || ''}`.trim();
+    if (!text) return;
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const temp = document.createElement('textarea');
+        temp.value = text;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand('copy');
+        document.body.removeChild(temp);
+      }
+      pushToast(`${label} copied`, 'success');
+    } catch {
+      pushToast(`Could not copy ${label.toLowerCase()}`, 'error');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isLoading) return;
@@ -182,8 +203,26 @@ export default function Login() {
                     {TEST_CREDENTIALS.map((row) => (
                       <tr key={row.email}>
                         <td className="px-2 py-1.5 capitalize">{row.role}</td>
-                        <td className="px-2 py-1.5 font-mono text-[10px]">{row.email}</td>
-                        <td className="px-2 py-1.5 font-mono text-[10px]">{row.password}</td>
+                        <td className="px-2 py-1.5 font-mono text-[10px]">
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(row.email, `${row.role} email`)}
+                            className="rounded px-1.5 py-0.5 text-left transition hover:bg-[#9bc23c]/15 hover:text-[#9bc23c]"
+                            title="Click to copy email"
+                          >
+                            {row.email}
+                          </button>
+                        </td>
+                        <td className="px-2 py-1.5 font-mono text-[10px]">
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(row.password, `${row.role} password`)}
+                            className="rounded px-1.5 py-0.5 text-left transition hover:bg-[#9bc23c]/15 hover:text-[#9bc23c]"
+                            title="Click to copy temporary password"
+                          >
+                            {row.password}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
