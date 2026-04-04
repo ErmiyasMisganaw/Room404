@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
+import { API_BASE_URL } from '../services/api';
 
-const WS_URL =
-  import.meta.env.VITE_WS_URL ||
-  (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000')
-    .replace(/^http/, 'ws') + '/api/ws';
+function toWebSocketBaseUrl(value) {
+  return `${value || ''}`
+    .trim()
+    .replace(/^http:\/\//i, 'ws://')
+    .replace(/^https:\/\//i, 'wss://')
+    .replace(/\/+$/, '');
+}
+
+const configuredWsUrl = `${import.meta.env.VITE_WS_URL || ''}`.trim();
+const WS_URL = configuredWsUrl || `${toWebSocketBaseUrl(API_BASE_URL)}/api/ws`;
 
 /**
  * Connects to the backend WebSocket and calls onMessage with parsed events.
@@ -21,19 +28,22 @@ export function useWebSocket(onMessage) {
     let ws;
     let reconnectTimer;
     let unmounted = false;
+    let reconnectDelayMs = 1000;
 
     const connect = () => {
       if (unmounted) return;
       ws = new WebSocket(WS_URL);
 
       ws.onopen = () => {
+        reconnectDelayMs = 1000;
         if (!unmounted) setConnected(true);
       };
 
       ws.onclose = () => {
         if (!unmounted) {
           setConnected(false);
-          reconnectTimer = setTimeout(connect, 3000);
+          reconnectTimer = setTimeout(connect, reconnectDelayMs);
+          reconnectDelayMs = Math.min(reconnectDelayMs * 2, 15000);
         }
       };
 

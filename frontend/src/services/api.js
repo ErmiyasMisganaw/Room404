@@ -1,5 +1,20 @@
-const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+function normalizeBaseUrl(value) {
+  return `${value || ''}`.trim().replace(/\/+$/, '');
+}
+
+const configuredApiBaseUrl = normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL);
+const fallbackApiBaseUrl = import.meta.env.DEV
+  ? 'http://127.0.0.1:8000'
+  : window.location.origin;
+
+if (!configuredApiBaseUrl && !import.meta.env.DEV) {
+  console.error(
+    'VITE_API_BASE_URL is not set in production. Falling back to window.location.origin. '
+    + 'Set VITE_API_BASE_URL to your backend Render URL.'
+  );
+}
+
+const API_BASE_URL = configuredApiBaseUrl || fallbackApiBaseUrl;
 
 const AUTH_HEADER_STORAGE_KEY = 'room404.auth-context';
 

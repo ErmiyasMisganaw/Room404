@@ -220,3 +220,69 @@ These are populated after Supabase sign-in from `AuthContext` (`localStorage` ke
 - Never commit real `SUPABASE_SERVICE_ROLE_KEY` or production DB passwords to git.
 - Rotate keys immediately if they were ever committed.
 - Keep service role key strictly backend-side.
+
+---
+
+## 13) Render deployment checklist (frontend + backend)
+
+Use this section when deploying to Render to avoid `ERR_CONNECTION_REFUSED` and WebSocket failures.
+
+### A) Backend service (Render Web Service)
+
+- Build method:
+  - If using Docker: this repo now includes `backend/Dockerfile`.
+  - If using native Python runtime: use `pip install -r requirements.txt` and start command below.
+- Start command:
+  - `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Health check path:
+  - `/api/health`
+
+Required backend env vars on Render:
+
+```env
+APP_ENV=production
+DATABASE_URL=postgresql://...   # Persistent Postgres, not sqlite
+CORS_ALLOWED_ORIGINS=https://YOUR_FRONTEND_RENDER_DOMAIN
+MANAGER_DASHBOARD_KEY=STRONG_RANDOM_SECRET
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY
+GEMINI_MODEL_NAME=gemini-3.1-flash-lite-preview
+STAFF_COOLDOWN_MINUTES=20
+```
+
+Notes:
+- In production, backend now rejects unsafe config (sqlite, wildcard CORS, default manager key).
+- If your frontend domain changes, update `CORS_ALLOWED_ORIGINS` and redeploy.
+
+### B) Frontend service (Render Static Site)
+
+Required frontend env vars on Render:
+
+```env
+VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY=YOUR_SUPABASE_ANON_KEY
+VITE_API_BASE_URL=https://YOUR_BACKEND_RENDER_DOMAIN
+# Optional explicit websocket endpoint:
+# VITE_WS_URL=wss://YOUR_BACKEND_RENDER_DOMAIN/api/ws
+```
+
+Important:
+- Do not point `VITE_API_BASE_URL` to `127.0.0.1` in production.
+- Remove trailing slash in `VITE_API_BASE_URL`.
+- Any env var change requires a new frontend deploy.
+
+### C) Frontend route rewrites (avoid `/manager` 404)
+
+For a static SPA, configure Render rewrite/fallback so unknown paths serve `index.html`.
+
+- Source: `/*`
+- Destination: `/index.html`
+- Action: Rewrite
+
+Without this, refreshing `/manager` or `/reception` may return a static 404 from Render.
+
+### D) Post-deploy verification
+
+1. Open backend health endpoint: `https://YOUR_BACKEND_RENDER_DOMAIN/api/health`.
+2. Open frontend and verify browser Network calls target backend Render URL (not localhost).
+3. Verify WebSocket status shows connected and no reconnect loop in console.
+4. Load manager analytics and confirm no CORS or connection-refused errors.
