@@ -3,6 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
 
+const TEST_CREDENTIALS = [
+  { role: 'manager', email: 'manager@kuriftu.local', password: 'Kuriftu#2026!Mgr' },
+  { role: 'receptionist', email: 'reception1@kuriftu.local', password: 'Kuriftu#2026!Rec1' },
+  { role: 'cleaner', email: 'cleaner1@kuriftu.local', password: 'Kuriftu#2026!Cln1' },
+  { role: 'maintenance', email: 'maintenance1@kuriftu.local', password: 'Kuriftu#2026!Mnt1' },
+  { role: 'cafeteria', email: 'cafeteria1@kuriftu.local', password: 'Kuriftu#2026!Caf1' },
+  { role: 'customer', email: 'guest101@kuriftu.local', password: 'Kuriftu#2026!G101' },
+];
+
 function Toast({ toasts, onDismiss }) {
   return (
     <div className="fixed right-5 top-5 z-50 flex flex-col gap-2 pointer-events-none">
@@ -134,7 +143,7 @@ export default function Login() {
             {/* Username */}
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35 mb-2">
-                Username
+                Email
               </label>
               <input
                 name="identifier"
@@ -143,7 +152,7 @@ export default function Login() {
                 autoFocus
                 value={form.identifier}
                 onChange={handleChange}
-                placeholder="Enter your username"
+                placeholder="Enter your email"
                 className={`w-full rounded-xl border bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/15 focus:bg-white/8 focus:ring-2 ${
                   errors.identifier
                     ? 'border-red-400/40 focus:ring-red-400/15'
@@ -152,6 +161,35 @@ export default function Login() {
               />
               {errors.identifier && <p className="mt-1.5 text-[11px] text-red-400">{errors.identifier}</p>}
             </div>
+
+            <details className="rounded-xl border border-[#9bc23c]/25 bg-[#0d2414]/45 px-4 py-3">
+              <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9bc23c]">
+                Testing Credentials (Temporary)
+              </summary>
+              <p className="mt-2 text-[11px] leading-relaxed text-white/65">
+                Notice: These are temporary QA credentials for testing only. Please rotate passwords after testing.
+              </p>
+              <div className="mt-3 max-h-44 overflow-auto rounded-lg border border-white/10">
+                <table className="w-full text-left text-[11px]">
+                  <thead className="bg-white/5 text-white/55">
+                    <tr>
+                      <th className="px-2 py-1.5 font-semibold uppercase tracking-wide">Role</th>
+                      <th className="px-2 py-1.5 font-semibold uppercase tracking-wide">Email</th>
+                      <th className="px-2 py-1.5 font-semibold uppercase tracking-wide">Temp Password</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10 text-white/80">
+                    {TEST_CREDENTIALS.map((row) => (
+                      <tr key={row.email}>
+                        <td className="px-2 py-1.5 capitalize">{row.role}</td>
+                        <td className="px-2 py-1.5 font-mono text-[10px]">{row.email}</td>
+                        <td className="px-2 py-1.5 font-mono text-[10px]">{row.password}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
 
             {/* Password */}
             <div>
