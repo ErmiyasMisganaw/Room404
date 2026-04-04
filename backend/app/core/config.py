@@ -16,7 +16,6 @@ GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-3.1-flash-lite-previe
 
 # Database: set DATABASE_URL for Supabase/Postgres in deployment.
 # Local fallback keeps current SQLite behavior.
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./room404.db").strip() or "sqlite:///./room404.db"
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./room404.db")
 
 # Comma-separated list, example:
