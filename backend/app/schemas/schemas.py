@@ -144,6 +144,34 @@ class StaffLeaderboardResponse(BaseModel):
     items: list[StaffLeaderboardItem]
 
 
+class AnalyticsTopFoodItem(BaseModel):
+    name: str
+    orders: int
+
+
+class AnalyticsTopStaffItem(BaseModel):
+    staff_id: int
+    name: str
+    completed_tasks: int
+
+
+class AnalyticsTopMaintenanceTypeItem(BaseModel):
+    type: str
+    count: int
+
+
+class ManagerAnalytics30dResponse(BaseModel):
+    window_days: int = 30
+    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    total_tasks: int
+    total_food_orders: int
+    total_maintenance_tasks: int
+    total_cleaner_tasks: int
+    top_food: list[AnalyticsTopFoodItem]
+    top_staff: list[AnalyticsTopStaffItem]
+    top_maintenance_types: list[AnalyticsTopMaintenanceTypeItem]
+
+
 class DispatchRequest(BaseModel):
     title: Optional[str] = None
     description: str = Field(..., min_length=1)

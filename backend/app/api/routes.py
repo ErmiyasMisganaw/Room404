@@ -1,17 +1,21 @@
 import json
 import re
-from datetime import datetime, timezone
+from collections import Counter
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
 
 import google.generativeai as genai
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
-from app.core.config import GEMINI_API_KEY, GEMINI_MODEL_NAME, STAFF_COOLDOWN_MINUTES
+from app.core.config import GEMINI_API_KEY, GEMINI_MODEL_NAME, MANAGER_DASHBOARD_KEY, STAFF_COOLDOWN_MINUTES
 from app.db.database import get_db
 from app.models.models import ChatMemory, FoodAvailability, Room, RoutedInstruction, StaffMember, Task, TaskFeedback
 from app.schemas.schemas import (
+    AnalyticsTopFoodItem,
+    AnalyticsTopMaintenanceTypeItem,
+    AnalyticsTopStaffItem,
     AgentResponseEnvelope,
     CafeteriaCompleteTaskRequest,
     CafeteriaOrderData,
@@ -23,6 +27,7 @@ from app.schemas.schemas import (
     FoodAvailabilityResponse,
     IgnoreData,
     InboxResponse,
+    ManagerAnalytics30dResponse,
     MenuItemUpsertRequest,
     MenuResponse,
     ResponseMeta,
@@ -396,6 +401,102 @@ def _build_menu_response(db: Session, include_unavailable: bool) -> MenuResponse
     all_rows = db.query(FoodAvailability).all()
     is_open = any(item.is_available and item.available_quantity > 0 for item in all_rows)
     return MenuResponse(open=is_open, items=[_food_to_schema(item) for item in rows])
+
+
+def _require_manager_access(
+    x_manager_key: str | None = Header(default=None, alias="x-manager-key"),
+) -> None:
+    if x_manager_key != MANAGER_DASHBOARD_KEY:
+        raise HTTPException(status_code=403, detail="Manager access denied.")
+
+
+def _extract_maintenance_type(text: str) -> str:
+    lowered = (text or "").lower()
+    if "ac" in lowered or "air" in lowered:
+        return "AC"
+    if any(token in lowered for token in ["leak", "faucet", "pipe", "plumb"]):
+        return "Plumbing"
+    if any(token in lowered for token in ["light", "electrical", "power", "socket"]):
+        return "Electrical"
+    if "tv" in lowered or "television" in lowered:
+        return "TV"
+    if "wifi" in lowered or "wi-fi" in lowered or "internet" in lowered:
+        return "WiFi"
+    return "Other"
+
+
+def _extract_food_name_from_task(task: Task, menu_items: list[str]) -> str:
+    instruction = task.staff_instruction or ""
+    match = re.search(r"prepare\s+(.+?)\s+for\s+room", instruction, flags=re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+
+    haystack = f"{task.description or ''} {instruction}".lower()
+    sorted_items = sorted(menu_items, key=len, reverse=True)
+    for item in sorted_items:
+        if item.lower() in haystack:
+            return item
+    return "Unknown"
+
+
+def _build_analytics_summary_30d(db: Session) -> ManagerAnalytics30dResponse:
+    cutoff = _utcnow() - timedelta(days=30)
+    tasks_30d = db.query(Task).filter(Task.created_at >= cutoff).all()
+
+    menu_items = [row.item_name for row in db.query(FoodAvailability).all()]
+
+    food_tasks = [task for task in tasks_30d if (task.category or "").strip().title() == "Food"]
+    maintenance_tasks = [task for task in tasks_30d if (task.category or "").strip().title() == "Maintenance"]
+    cleaner_tasks = [
+        task
+        for task in tasks_30d
+        if (task.category or "").strip().title() in {"Cleaners", "Workers"}
+    ]
+
+    food_counter = Counter(_extract_food_name_from_task(task, menu_items) for task in food_tasks)
+    if "Unknown" in food_counter and len(food_counter) > 1:
+        del food_counter["Unknown"]
+    maintenance_counter = Counter(
+        _extract_maintenance_type(f"{task.description or ''} {task.staff_instruction or ''}")
+        for task in maintenance_tasks
+    )
+
+    completed_30d = [
+        task
+        for task in tasks_30d
+        if task.assigned_staff_id is not None and task.completed_at is not None and task.completed_at >= cutoff
+    ]
+    staff_counter = Counter(int(task.assigned_staff_id) for task in completed_30d)
+
+    staff_names = {
+        row.id: row.name
+        for row in db.query(StaffMember).all()
+    }
+
+    return ManagerAnalytics30dResponse(
+        window_days=30,
+        generated_at=_utcnow(),
+        total_tasks=len(tasks_30d),
+        total_food_orders=len(food_tasks),
+        total_maintenance_tasks=len(maintenance_tasks),
+        total_cleaner_tasks=len(cleaner_tasks),
+        top_food=[
+            AnalyticsTopFoodItem(name=name, orders=count)
+            for name, count in food_counter.most_common(5)
+        ],
+        top_staff=[
+            AnalyticsTopStaffItem(
+                staff_id=staff_id,
+                name=staff_names.get(staff_id, f"Staff {staff_id}"),
+                completed_tasks=count,
+            )
+            for staff_id, count in staff_counter.most_common(5)
+        ],
+        top_maintenance_types=[
+            AnalyticsTopMaintenanceTypeItem(type=name, count=count)
+            for name, count in maintenance_counter.most_common(5)
+        ],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1091,8 +1192,18 @@ async def trigger_checkout(room_number: str, db: Session = Depends(get_db)) -> d
 # Analytics
 # ---------------------------------------------------------------------------
 
+@router.get("/analytics/summary-30d", response_model=ManagerAnalytics30dResponse)
+def get_analytics_summary_30d(
+    _: None = Depends(_require_manager_access),
+    db: Session = Depends(get_db),
+) -> ManagerAnalytics30dResponse:
+    return _build_analytics_summary_30d(db)
+
 @router.get("/analytics")
-def get_analytics(db: Session = Depends(get_db)) -> dict:
+def get_analytics(
+    _: None = Depends(_require_manager_access),
+    db: Session = Depends(get_db),
+) -> dict:
     tasks = db.query(Task).all()
 
     by_category: dict[str, int] = {}
