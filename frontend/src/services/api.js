@@ -70,8 +70,34 @@ export function getHealth() {
   return apiGet('/api/health');
 }
 
-export function sendChat(message, roomNumber = 'Unknown') {
-  return apiPost('/api/chat', {message, room_number: roomNumber});
+export function sendChat(messageOrPayload, roomNumber = 'Unknown', options = {}) {
+  if (typeof messageOrPayload === 'object' && messageOrPayload !== null) {
+    const payload = {
+      name: messageOrPayload.name || 'Guest',
+      message: messageOrPayload.message || '',
+      room_number: messageOrPayload.room_number || 'Unknown',
+      role: messageOrPayload.role || 'customer',
+    };
+
+    if (messageOrPayload.user_id) {
+      payload.user_id = messageOrPayload.user_id;
+    }
+
+    return apiPost('/api/chat', payload);
+  }
+
+  const payload = {
+    name: options.name || 'Guest',
+    message: messageOrPayload || '',
+    room_number: roomNumber,
+    role: options.role || 'customer',
+  };
+
+  if (options.user_id) {
+    payload.user_id = options.user_id;
+  }
+
+  return apiPost('/api/chat', payload);
 }
 
 export function getTasks() {
