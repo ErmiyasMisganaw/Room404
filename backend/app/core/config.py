@@ -6,7 +6,7 @@ GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-3.1-flash-lite-previe
 
 # Database: set DATABASE_URL for Supabase/Postgres in deployment.
 # Local fallback keeps current SQLite behavior.
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./room404.db")
+DATABASE_URL = os.getenv("postgresql://postgres:W0gghK6jutyPnLlR@db.uiscrloheggjvnxchwpl.supabase.co:5432/postgres", "sqlite:///./room404.db")
 
 # Comma-separated list, example:
 # CORS_ALLOWED_ORIGINS="http://localhost:5173,https://your-frontend.vercel.app"
