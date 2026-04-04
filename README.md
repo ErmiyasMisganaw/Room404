@@ -4,6 +4,12 @@
 
 An AI-powered hotel operations platform that transforms guest experience and staff efficiency through intelligent request routing, real-time task management, and a beautiful multi-role interface.
 
+## Full Setup & Test Credentials
+
+Use the complete step-by-step setup + QA credential guide here:
+
+- `docs/SETUP_AND_TESTING_GUIDE.md`
+
 ---
 
 ## What it does
