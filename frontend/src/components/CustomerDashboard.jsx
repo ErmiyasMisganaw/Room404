@@ -5,7 +5,7 @@ import { apiPost } from '../services/api';
 import {
   RiHomeLine, RiRestaurantLine, RiCustomerService2Line,
   RiFileListLine, RiBankCardLine, RiMenuLine, RiCloseLine,
-  RiLogoutBoxRLine, RiWifiLine, RiTempColdLine, RiTv2Line,
+  RiWifiLine, RiTempColdLine, RiTv2Line,
   RiShieldCheckLine, RiPhoneLine, RiMapPinLine,
   RiInstagramLine, RiFacebookBoxLine, RiTwitterXLine,
   RiArrowLeftSLine, RiArrowRightSLine,
@@ -223,12 +223,12 @@ function HeroCanvas({ user }) {
 // ─── Services Carousel ────────────────────────────────────────────────────────
 
 const SERVICES = [
-  { key: 'spa',           label: 'Spa & Wellness',   icon: '🧖', desc: 'World-class treatments',      img: '/kuriftulogowithtext.webp' },
-  { key: 'gym',           label: 'Fitness Center',   icon: '🏋️', desc: '24/7 fully equipped',         img: '/kuriftulogo.jpg' },
-  { key: 'waterpark',     label: 'Water Park',       icon: '🌊', desc: 'Slides & relaxing pools',     img: '/kuriftulogowithtext.webp' },
-  { key: 'entertainment', label: 'Entertainment',    icon: '🎭', desc: 'Live shows & cultural events', img: '/kuriftulogo.jpg' },
-  { key: 'dining',        label: 'Fine Dining',      icon: '🍽️', desc: 'Curated culinary experience', img: '/kuriftulogowithtext.webp' },
-  { key: 'pool',          label: 'Infinity Pool',    icon: '🏊', desc: 'Panoramic resort views',      img: '/kuriftulogo.jpg' },
+  { key: 'spa',           label: 'Spa & Wellness',   icon: '🧖', desc: 'World-class treatments & massages',     img: '/spa.jpg' },
+  { key: 'gym',           label: 'Fitness Center',   icon: '🏋️', desc: '24/7 fully equipped gym',              img: '/gym.jpg' },
+  { key: 'waterpark',     label: 'Water Park',       icon: '🌊', desc: 'Slides & relaxing pools for all ages', img: '/waterpark.jpg' },
+  { key: 'entertainment', label: 'Entertainment',    icon: '🎭', desc: 'Live shows & cultural events',         img: '/entertainment.jpg' },
+  { key: 'dining',        label: 'Fine Dining',      icon: '🍽️', desc: 'Curated culinary experience',         img: '/food.jpg' },
+  { key: 'pool',          label: 'Infinity Pool',    icon: '🏊', desc: 'Panoramic resort views',              img: '/waterpark.jpg' },
 ];
 
 function ServicesCarousel() {
@@ -465,13 +465,13 @@ const FOOD_CATEGORIES = [
 const STATIC_MENU = [
   { name: 'Injera with Tibs', price: 180, category: 'local', tag: "Chef's Pick",
     desc: 'Traditional Ethiopian flatbread with sautéed spiced beef',
-    img: 'https://images.unsplash.com/photo-1567364816519-cbc9c4ffe1eb?w=400&q=80' },
+    img: '/food.jpg' },
   { name: 'Doro Wat', price: 220, category: 'local', tag: 'Signature',
     desc: 'Slow-cooked spicy chicken stew with boiled eggs',
-    img: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=400&q=80' },
+    img: '/food2.jpg' },
   { name: 'Shiro Fitfit', price: 150, category: 'local', tag: null,
     desc: 'Chickpea stew folded with torn injera pieces',
-    img: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&q=80' },
+    img: '/food3.jpg' },
   { name: 'Grilled Salmon', price: 380, category: 'international', tag: 'Premium',
     desc: 'Atlantic salmon fillet with lemon butter and herbs',
     img: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=400&q=80' },
