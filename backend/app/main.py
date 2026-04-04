@@ -37,20 +37,36 @@ def _seed_rooms(db) -> None:
 
 
 def _seed_food_availability(db) -> None:
-    """Insert default cafeteria stock on first run if table is empty."""
-    if db.query(models.FoodAvailability).count() > 0:
-        return
+    """Insert default cafeteria stock and backfill missing catalog items."""
 
     initial_items = [
-        {"item_name": "Pasta", "available_quantity": 12, "price": 270, "is_available": True, "note": "Initial stock"},
-        {"item_name": "Club Sandwich", "available_quantity": 8, "price": 250, "is_available": True, "note": "Initial stock"},
-        {"item_name": "Orange Juice", "available_quantity": 20, "price": 90, "is_available": True, "note": "Initial stock"},
+        {"item_name": "Injera with Tibs", "available_quantity": 12, "price": 180, "is_available": True, "note": "Seeded from customer menu"},
+        {"item_name": "Doro Wat", "available_quantity": 12, "price": 220, "is_available": True, "note": "Seeded from customer menu"},
+        {"item_name": "Shiro Fitfit", "available_quantity": 12, "price": 150, "is_available": True, "note": "Seeded from customer menu"},
+        {"item_name": "Grilled Salmon", "available_quantity": 8, "price": 380, "is_available": True, "note": "Seeded from customer menu"},
+        {"item_name": "Club Sandwich", "available_quantity": 10, "price": 250, "is_available": True, "note": "Seeded from customer menu"},
+        {"item_name": "Margherita Pizza", "available_quantity": 10, "price": 290, "is_available": True, "note": "Seeded from customer menu"},
+        {"item_name": "Caesar Salad", "available_quantity": 10, "price": 200, "is_available": True, "note": "Seeded from customer menu"},
+        {"item_name": "Pasta Carbonara", "available_quantity": 10, "price": 270, "is_available": True, "note": "Seeded from customer menu"},
+        {"item_name": "Fresh Orange Juice", "available_quantity": 20, "price": 90, "is_available": True, "note": "Seeded from customer menu"},
+        {"item_name": "Mango Smoothie", "available_quantity": 20, "price": 110, "is_available": True, "note": "Seeded from customer menu"},
+        {"item_name": "Ethiopian Coffee", "available_quantity": 30, "price": 70, "is_available": True, "note": "Seeded from customer menu"},
+        {"item_name": "Avocado Juice", "available_quantity": 20, "price": 100, "is_available": True, "note": "Seeded from customer menu"},
     ]
 
+    existing_item_names = {
+        (name or "").strip().lower()
+        for (name,) in db.query(models.FoodAvailability.item_name).all()
+    }
+
     for data in initial_items:
-        data["version"] = 1
-        data["updated_by"] = "cafeteria"
-        db.add(models.FoodAvailability(**data))
+        normalized_name = (data.get("item_name") or "").strip().lower()
+        if normalized_name in existing_item_names:
+            continue
+        payload = dict(data)
+        payload["version"] = 1
+        payload["updated_by"] = "cafeteria"
+        db.add(models.FoodAvailability(**payload))
 
     db.commit()
 
