@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Sidebar, { Icon } from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { apiGet, apiPost } from '../services/api';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
@@ -249,13 +250,17 @@ function MyTasksSection({ user }) {
         )}
 
         {assignedTasks.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#9bc23c]/40 bg-white py-16 text-center">
-            <p className="text-4xl mb-3">🧹</p>
+          <div className="animate-fade-in-up rounded-2xl border border-dashed border-[#9bc23c]/40 bg-white py-16 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#9bc23c]/10">
+              <svg className="h-8 w-8 text-[#9bc23c]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
             <p className="font-semibold text-gray-700">No assigned tasks</p>
             <p className="mt-1 text-sm text-gray-500">Check the Room Queue for available tasks.</p>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 stagger-children">
             {assignedTasks.map((task) => (
               <TaskCard
                 key={task.id}
@@ -313,13 +318,17 @@ function QueueSection({ user }) {
       />
       <div className="p-6">
         {availableRooms.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#9bc23c]/40 bg-white py-16 text-center">
-            <p className="text-4xl mb-3">✅</p>
+          <div className="animate-fade-in-up rounded-2xl border border-dashed border-[#9bc23c]/40 bg-white py-16 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#9bc23c]/10">
+              <svg className="h-8 w-8 text-[#9bc23c]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
             <p className="font-semibold text-gray-700">Queue is clear</p>
             <p className="mt-1 text-sm text-gray-500">All rooms have been attended to.</p>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 stagger-children">
             {availableRooms.map((room) => {
               const isLoading = loadingId === room.id;
               return (
@@ -357,6 +366,23 @@ function QueueSection({ user }) {
   );
 }
 
+// ── Chart helpers ─────────────────────────────────────────────────────────────
+
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-[#9bc23c]/20 bg-white px-3 py-2 text-xs shadow-lg">
+      {label && <p className="font-semibold text-[#0d2414] mb-1">{label}</p>}
+      {payload.map((p, i) => (
+        <p key={i} className="text-gray-600">
+          <span className="inline-block h-2 w-2 rounded-full mr-1.5" style={{ backgroundColor: p.color || p.fill }} />
+          {p.name}: <span className="font-bold text-[#0d2414]">{p.value}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
 // ── Analytics Section ─────────────────────────────────────────────────────────
 
 function AnalyticsSection({ user }) {
@@ -365,7 +391,7 @@ function AnalyticsSection({ user }) {
   const [leaderboard, setLeaderboard] = useState([]);
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchData = async () => {
       try {
         const [analytics, lb] = await Promise.all([
           apiGet('/api/analytics').catch(() => null),
@@ -375,8 +401,8 @@ function AnalyticsSection({ user }) {
         setLeaderboard(Array.isArray(lb) ? lb : lb?.staff || []);
       } catch { /* silent */ }
     };
-    fetch();
-    const id = setInterval(fetch, 30000);
+    fetchData();
+    const id = setInterval(fetchData, 30000);
     return () => clearInterval(id);
   }, []);
 
@@ -386,83 +412,102 @@ function AnalyticsSection({ user }) {
   const total = assignedTasks.length;
   const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
 
+  const taskPieData = [
+    { name: 'Completed', value: completed, fill: '#2d7a3a' },
+    { name: 'In Progress', value: inProgress, fill: '#9bc23c' },
+    { name: 'Pending', value: pending, fill: '#f59e0b' },
+  ].filter((d) => d.value > 0);
+
+  const leaderData = leaderboard
+    .filter((s) => s.pool === 'cleaners' || !s.pool)
+    .slice(0, 5)
+    .map((s) => ({ name: s.name?.split(' ')[0] || 'Staff', tasks: s.completed_task_count ?? s.completed ?? 0 }));
+
   return (
     <div>
       <PageHeader title="Analytics" subtitle="Your performance & hotel overview" icon={Icon.analytics} />
       <div className="p-6 space-y-6">
         {/* Personal stats */}
-        <div>
-          <h2 className="mb-3 text-sm font-bold text-[#0d2414]">My Performance</h2>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            {[
-              { label: 'Total Assigned', value: total, color: 'bg-[#1d5c28]/5 border-[#1d5c28]/20', text: 'text-[#1d5c28]' },
-              { label: 'Completed', value: completed, color: 'bg-[#9bc23c]/10 border-[#9bc23c]/30', text: 'text-[#3a6e10]' },
-              { label: 'In Progress', value: inProgress, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-              { label: 'Completion Rate', value: `${rate}%`, color: 'bg-[#d4186e]/5 border-[#d4186e]/20', text: 'text-[#d4186e]' },
-            ].map((card) => (
-              <div key={card.label} className={`rounded-2xl border p-5 ${card.color}`}>
-                <p className={`text-2xl font-extrabold ${card.text}`}>{card.value}</p>
-                <p className="mt-1 text-xs font-semibold text-gray-500">{card.label}</p>
-              </div>
-            ))}
-          </div>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 stagger-children">
+          {[
+            { label: 'Total Assigned', value: total, color: 'bg-[#1d5c28]/5 border-[#1d5c28]/20', text: 'text-[#1d5c28]' },
+            { label: 'Completed', value: completed, color: 'bg-[#9bc23c]/10 border-[#9bc23c]/30', text: 'text-[#3a6e10]' },
+            { label: 'In Progress', value: inProgress, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+            { label: 'Completion Rate', value: `${rate}%`, color: 'bg-[#d4186e]/5 border-[#d4186e]/20', text: 'text-[#d4186e]' },
+          ].map((card) => (
+            <div key={card.label} className={`rounded-2xl border p-5 ${card.color}`}>
+              <p className={`text-2xl font-extrabold ${card.text}`}>{card.value}</p>
+              <p className="mt-1 text-xs font-semibold text-gray-500">{card.label}</p>
+            </div>
+          ))}
         </div>
 
-        {/* Completion bar */}
+        {/* Charts row */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Task status donut */}
+          {taskPieData.length > 0 && (
+            <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5 animate-fade-in-up">
+              <h3 className="mb-2 text-sm font-bold text-[#0d2414]">Task Breakdown</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={taskPieData} cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} dataKey="value" strokeWidth={0}>
+                    {taskPieData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip />} />
+                  <Legend verticalAlign="bottom" iconType="circle" iconSize={8} formatter={(v) => <span className="text-xs text-gray-600">{v}</span>} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Leaderboard bar chart */}
+          {leaderData.length > 0 && (
+            <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+              <h3 className="mb-2 text-sm font-bold text-[#0d2414]">Team Performance</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={leaderData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e8edd8" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: '#9bc23c', fillOpacity: 0.08 }} />
+                  <Bar dataKey="tasks" name="Completed" radius={[6, 6, 0, 0]} maxBarSize={40} fill="#2d7a3a" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        {/* Completion gauge */}
         {total > 0 && (
-          <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold text-[#0d2414]">Overall Completion</p>
-              <p className="text-sm font-bold text-[#1d5c28]">{rate}%</p>
+          <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5 animate-fade-in-up">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-[#0d2414]">Overall Completion</h3>
+              <span className="text-2xl font-extrabold text-[#2d7a3a]">{rate}%</span>
             </div>
-            <div className="h-3 overflow-hidden rounded-full bg-[#f4f6ed]">
-              <div className="h-3 rounded-full bg-gradient-to-r from-[#2d7a3a] to-[#9bc23c] transition-all duration-700"
-                style={{ width: `${rate}%` }} />
+            <div className="h-4 overflow-hidden rounded-full bg-[#f4f6ed]">
+              <div className="h-4 rounded-full bg-gradient-to-r from-[#2d7a3a] via-[#9bc23c] to-[#b4d655] transition-all duration-1000" style={{ width: `${rate}%` }} />
             </div>
-            <div className="mt-2 flex gap-4 text-xs text-gray-500">
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#9bc23c]" />Completed: {completed}</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />Pending: {pending}</span>
+            <div className="mt-2 flex justify-between text-[10px] text-gray-400 font-medium">
+              <span>0%</span><span>50%</span><span>100%</span>
             </div>
           </div>
         )}
 
-        {/* Staff leaderboard */}
-        {leaderboard.length > 0 && (
-          <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5">
-            <h3 className="mb-4 text-sm font-bold text-[#0d2414]">Staff Leaderboard</h3>
-            <div className="space-y-2">
-              {leaderboard.slice(0, 5).map((staff, i) => (
-                <div key={staff.id || i} className="flex items-center gap-3 rounded-xl bg-[#f4f6ed] px-4 py-3">
-                  <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
-                    i === 0 ? 'bg-[#c9b44a] text-white' : i === 1 ? 'bg-gray-400 text-white' : i === 2 ? 'bg-[#c4845a] text-white' : 'bg-gray-200 text-gray-600'
-                  }`}>{i + 1}</span>
-                  <p className="flex-1 text-sm font-semibold text-gray-800">{staff.name}</p>
-                  <div className="text-right">
-                    <p className="text-xs font-bold text-[#1d5c28]">{staff.completed_task_count ?? staff.completed ?? 0} done</p>
-                    <p className="text-[10px] text-gray-400">{staff.pool || 'cleaners'}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
+        {/* Hotel overview */}
         {analyticsData && (
-          <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5">
+          <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5 animate-fade-in-up">
             <h3 className="mb-4 text-sm font-bold text-[#0d2414]">Hotel Overview</h3>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
-                <p className="text-xl font-bold text-[#1d5c28]">{analyticsData.total_tasks ?? '—'}</p>
-                <p className="text-xs text-gray-500">Total Tasks</p>
-              </div>
-              <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
-                <p className="text-xl font-bold text-[#3a6e10]">{analyticsData.occupancy_rate != null ? `${analyticsData.occupancy_rate}%` : '—'}</p>
-                <p className="text-xs text-gray-500">Occupancy</p>
-              </div>
-              <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
-                <p className="text-xl font-bold text-amber-600">{analyticsData.cleaning_needed ?? '—'}</p>
-                <p className="text-xs text-gray-500">Need Cleaning</p>
-              </div>
+              {[
+                { label: 'Total Tasks', value: analyticsData.total_tasks ?? '—', text: 'text-[#1d5c28]' },
+                { label: 'Occupancy', value: analyticsData.occupancy_rate != null ? `${analyticsData.occupancy_rate}%` : '—', text: 'text-[#3a6e10]' },
+                { label: 'Need Cleaning', value: analyticsData.cleaning_needed ?? '—', text: 'text-amber-600' },
+              ].map((s) => (
+                <div key={s.label} className="rounded-xl bg-[#f4f6ed] p-3 text-center">
+                  <p className={`text-xl font-bold ${s.text}`}>{s.value}</p>
+                  <p className="text-xs text-gray-500">{s.label}</p>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -495,10 +540,12 @@ export default function CleanerDashboard() {
         user={user}
         onLogout={handleLogout}
       />
-      <main className="flex-1 lg:ml-64 min-h-screen">
-        {activeSection === 'tasks'     && <MyTasksSection user={user} />}
-        {activeSection === 'queue'     && <QueueSection user={user} />}
-        {activeSection === 'analytics' && <AnalyticsSection user={user} />}
+      <main className="flex-1 lg:ml-64 min-h-screen" key={activeSection}>
+        <div className="animate-fade-in">
+          {activeSection === 'tasks'     && <MyTasksSection user={user} />}
+          {activeSection === 'queue'     && <QueueSection user={user} />}
+          {activeSection === 'analytics' && <AnalyticsSection user={user} />}
+        </div>
       </main>
     </div>
   );

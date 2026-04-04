@@ -9,7 +9,7 @@ build/
 .venv/
 venv/
 env/
-
+.pyc
 # Database
 *.db
 *.sqlite3

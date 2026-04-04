@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Sidebar, { Icon } from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { apiGet, apiPost } from '../services/api';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
@@ -166,8 +167,12 @@ function IssuesSection() {
       />
       <div className="p-6">
         {issues.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#9bc23c]/40 bg-white py-16 text-center">
-            <p className="text-4xl mb-3">✅</p>
+          <div className="animate-fade-in-up rounded-2xl border border-dashed border-[#9bc23c]/40 bg-white py-16 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#c9b44a]/10">
+              <svg className="h-8 w-8 text-[#c9b44a]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17l-5.384-3.19m0 0a2.019 2.019 0 01-.424-2.89l4.88-6.344a2.019 2.019 0 013.067.084l4.589 5.99a2.019 2.019 0 01-.453 2.85l-5.31 3.37m-2.965.13l.243 3.1a1.01 1.01 0 001.517.742l2.498-1.587m-4.258 1.105l-1.395 1.181A1.01 1.01 0 005.4 19.31l.097-3.14" />
+              </svg>
+            </div>
             <p className="font-semibold text-gray-700">All clear!</p>
             <p className="mt-1 text-sm text-gray-500">No maintenance issues at this time.</p>
           </div>
@@ -176,7 +181,7 @@ function IssuesSection() {
             {pending.length > 0 && (
               <div className="mb-6">
                 <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400">Pending Issues</h2>
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 stagger-children">
                   {pending.map((issue) => (
                     <IssueCard key={issue.id} issue={issue} onResolve={handleResolve} loadingId={loadingId} />
                   ))}
@@ -186,7 +191,7 @@ function IssuesSection() {
             {resolved.length > 0 && (
               <div>
                 <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400">Resolved Today</h2>
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 stagger-children">
                   {resolved.map((issue) => (
                     <IssueCard key={issue.id} issue={issue} onResolve={handleResolve} loadingId={loadingId} />
                   ))}
@@ -201,7 +206,24 @@ function IssuesSection() {
   );
 }
 
-// ── Analytics Section ─────────────────────────────────────────────────────────
+// ── Chart helpers ─────────────────────────────────────────────────────────────
+
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-[#c9b44a]/20 bg-white px-3 py-2 text-xs shadow-lg">
+      {label && <p className="font-semibold text-[#0d2414] mb-1">{label}</p>}
+      {payload.map((p, i) => (
+        <p key={i} className="text-gray-600">
+          <span className="inline-block h-2 w-2 rounded-full mr-1.5" style={{ backgroundColor: p.color || p.fill }} />
+          {p.name}: <span className="font-bold text-[#0d2414]">{p.value}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
+// ── Analytics Section ─────────────────────────────────────────────��───────────
 
 function AnalyticsSection() {
   const [issues, setIssues] = useState(fallbackIssues);
@@ -209,7 +231,7 @@ function AnalyticsSection() {
   const [leaderboard, setLeaderboard] = useState([]);
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchData = async () => {
       try {
         const [inbox, feedback, analytics, lb] = await Promise.all([
           apiGet('/api/inbox/maintenance').catch(() => ({ items: [] })),
@@ -229,12 +251,12 @@ function AnalyticsSection() {
         setLeaderboard(Array.isArray(lb) ? lb : lb?.staff || []);
       } catch { /* keep fallback */ }
     };
-    fetch();
+    fetchData();
   }, []);
 
   const total = issues.length;
   const resolved = issues.filter((i) => i.status === 'completed').length;
-  const pending = issues.filter((i) => i.status !== 'completed').length;
+  const pendingCount = issues.filter((i) => i.status !== 'completed').length;
   const rate = total > 0 ? Math.round((resolved / total) * 100) : 0;
 
   const byPriority = useMemo(() => {
@@ -243,16 +265,24 @@ function AnalyticsSection() {
     return counts;
   }, [issues]);
 
+  const statusPieData = [
+    { name: 'Resolved', value: resolved, fill: '#2d7a3a' },
+    { name: 'Pending', value: pendingCount, fill: '#f59e0b' },
+  ].filter((d) => d.value > 0);
+
+  const priorityBarData = Object.entries(byPriority).map(([name, value]) => ({ name, value }));
+  const PRIORITY_COLORS = { High: '#d4186e', Medium: '#f59e0b', Low: '#96d49e' };
+
   return (
     <div>
       <PageHeader title="Analytics" subtitle="Maintenance performance & hotel overview" icon={Icon.analytics} />
       <div className="p-6 space-y-6">
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 stagger-children">
           {[
             { label: 'Total Issues', value: total, color: 'bg-[#c9b44a]/10 border-[#c9b44a]/30', text: 'text-[#8a6a10]' },
             { label: 'Resolved', value: resolved, color: 'bg-[#9bc23c]/10 border-[#9bc23c]/30', text: 'text-[#3a6e10]' },
-            { label: 'Pending', value: pending, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+            { label: 'Pending', value: pendingCount, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
             { label: 'Resolution Rate', value: `${rate}%`, color: 'bg-[#1d5c28]/5 border-[#1d5c28]/20', text: 'text-[#1d5c28]' },
           ].map((card) => (
             <div key={card.label} className={`rounded-2xl border p-5 ${card.color}`}>
@@ -262,45 +292,61 @@ function AnalyticsSection() {
           ))}
         </div>
 
-        {/* Progress */}
-        {total > 0 && (
-          <div className="rounded-2xl border border-[#c9b44a]/25 bg-white p-5">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold text-[#0d2414]">Resolution Progress</p>
-              <p className="text-sm font-bold text-[#8a6a10]">{rate}%</p>
+        {/* Charts row */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Resolution donut */}
+          {statusPieData.length > 0 && (
+            <div className="rounded-2xl border border-[#c9b44a]/25 bg-white p-5 animate-fade-in-up">
+              <h3 className="mb-2 text-sm font-bold text-[#0d2414]">Resolution Status</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={statusPieData} cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={4} dataKey="value" strokeWidth={0}>
+                    {statusPieData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip />} />
+                  <Legend verticalAlign="bottom" iconType="circle" iconSize={8} formatter={(v) => <span className="text-xs text-gray-600">{v}</span>} />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-            <div className="h-3 overflow-hidden rounded-full bg-[#f4f6ed]">
-              <div className="h-3 rounded-full bg-gradient-to-r from-[#c9b44a] to-[#9bc23c] transition-all duration-700"
-                style={{ width: `${rate}%` }} />
+          )}
+
+          {/* Priority bar chart */}
+          <div className="rounded-2xl border border-[#c9b44a]/25 bg-white p-5 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+            <h3 className="mb-2 text-sm font-bold text-[#0d2414]">Issues by Priority</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={priorityBarData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e8edd8" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: '#c9b44a', fillOpacity: 0.08 }} />
+                <Bar dataKey="value" name="Issues" radius={[6, 6, 0, 0]} maxBarSize={50}>
+                  {priorityBarData.map((entry) => <Cell key={entry.name} fill={PRIORITY_COLORS[entry.name] || '#c9b44a'} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Resolution gauge */}
+        {total > 0 && (
+          <div className="rounded-2xl border border-[#c9b44a]/25 bg-white p-5 animate-fade-in-up">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-[#0d2414]">Resolution Progress</h3>
+              <span className="text-2xl font-extrabold text-[#8a6a10]">{rate}%</span>
+            </div>
+            <div className="h-4 overflow-hidden rounded-full bg-[#f4f6ed]">
+              <div className="h-4 rounded-full bg-gradient-to-r from-[#c9b44a] via-[#9bc23c] to-[#2d7a3a] transition-all duration-1000" style={{ width: `${rate}%` }} />
+            </div>
+            <div className="mt-2 flex justify-between text-[10px] text-gray-400 font-medium">
+              <span>0%</span><span>50%</span><span>100%</span>
             </div>
           </div>
         )}
 
-        {/* By priority */}
-        <div className="rounded-2xl border border-[#c9b44a]/25 bg-white p-5">
-          <h3 className="mb-4 text-sm font-bold text-[#0d2414]">Issues by Priority</h3>
-          <div className="space-y-3">
-            {Object.entries(byPriority).map(([priority, count]) => {
-              const max = Math.max(...Object.values(byPriority), 1);
-              const barColor = { High: 'from-[#d4186e] to-[#e8429a]', Medium: 'from-amber-400 to-amber-300', Low: 'from-gray-300 to-gray-200' };
-              return (
-                <div key={priority} className="flex items-center gap-3">
-                  <p className="w-16 text-xs font-semibold text-gray-600">{priority}</p>
-                  <div className="flex-1 overflow-hidden rounded-full bg-[#f4f6ed] h-2.5">
-                    <div className={`h-2.5 rounded-full bg-gradient-to-r ${barColor[priority]} transition-all duration-500`}
-                      style={{ width: `${(count / max) * 100}%` }} />
-                  </div>
-                  <span className="text-xs font-bold text-gray-700 w-5 text-right">{count}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Staff leaderboard - maintenance staff */}
+        {/* Staff leaderboard */}
         {leaderboard.filter((s) => s.pool === 'maintenance').length > 0 && (
-          <div className="rounded-2xl border border-[#c9b44a]/25 bg-white p-5">
-            <h3 className="mb-4 text-sm font-bold text-[#0d2414]">Maintenance Team Performance</h3>
+          <div className="rounded-2xl border border-[#c9b44a]/25 bg-white p-5 animate-fade-in-up">
+            <h3 className="mb-4 text-sm font-bold text-[#0d2414]">Maintenance Team</h3>
             <div className="space-y-2">
               {leaderboard.filter((s) => s.pool === 'maintenance').map((staff, i) => (
                 <div key={staff.id || i} className="flex items-center gap-3 rounded-xl bg-[#f4f6ed] px-4 py-3">
@@ -315,23 +361,21 @@ function AnalyticsSection() {
           </div>
         )}
 
-        {/* Hotel overview from analytics */}
+        {/* Hotel overview */}
         {analyticsData && (
-          <div className="rounded-2xl border border-[#c9b44a]/25 bg-white p-5">
+          <div className="rounded-2xl border border-[#c9b44a]/25 bg-white p-5 animate-fade-in-up">
             <h3 className="mb-4 text-sm font-bold text-[#0d2414]">Hotel Overview</h3>
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
-                <p className="text-xl font-bold text-[#1d5c28]">{analyticsData.total_tasks ?? '—'}</p>
-                <p className="text-xs text-gray-500">Total Tasks</p>
-              </div>
-              <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
-                <p className="text-xl font-bold text-[#3a6e10]">{analyticsData.occupancy_rate != null ? `${analyticsData.occupancy_rate}%` : '—'}</p>
-                <p className="text-xs text-gray-500">Occupancy</p>
-              </div>
-              <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
-                <p className="text-xl font-bold text-amber-600">{analyticsData.cleaning_needed ?? '—'}</p>
-                <p className="text-xs text-gray-500">Need Cleaning</p>
-              </div>
+              {[
+                { label: 'Total Tasks', value: analyticsData.total_tasks ?? '—', text: 'text-[#1d5c28]' },
+                { label: 'Occupancy', value: analyticsData.occupancy_rate != null ? `${analyticsData.occupancy_rate}%` : '—', text: 'text-[#3a6e10]' },
+                { label: 'Need Cleaning', value: analyticsData.cleaning_needed ?? '—', text: 'text-amber-600' },
+              ].map((s) => (
+                <div key={s.label} className="rounded-xl bg-[#f4f6ed] p-3 text-center">
+                  <p className={`text-xl font-bold ${s.text}`}>{s.value}</p>
+                  <p className="text-xs text-gray-500">{s.label}</p>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -363,9 +407,11 @@ export default function MaintenanceDashboard() {
         user={user}
         onLogout={handleLogout}
       />
-      <main className="flex-1 lg:ml-64 min-h-screen">
-        {activeSection === 'issues'    && <IssuesSection />}
-        {activeSection === 'analytics' && <AnalyticsSection />}
+      <main className="flex-1 lg:ml-64 min-h-screen" key={activeSection}>
+        <div className="animate-fade-in">
+          {activeSection === 'issues'    && <IssuesSection />}
+          {activeSection === 'analytics' && <AnalyticsSection />}
+        </div>
       </main>
     </div>
   );

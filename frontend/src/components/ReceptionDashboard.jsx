@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Sidebar, { Icon } from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const API = 'http://localhost:8000/api';
 
@@ -33,7 +34,7 @@ function PageHeader({ title, subtitle, icon, actions, wsConnected }) {
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-bold text-[#0d2414]">{title}</h1>
             {wsConnected !== undefined && (
-              <span className={`flex h-2 w-2 rounded-full ${wsConnected ? 'bg-[#9bc23c]' : 'bg-gray-300'}`} title={wsConnected ? 'Live' : 'Offline'} />
+              <span className={`flex h-2 w-2 rounded-full ${wsConnected ? 'bg-[#9bc23c] animate-pulse-glow' : 'bg-gray-300'}`} title={wsConnected ? 'Live' : 'Offline'} />
             )}
           </div>
           {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
@@ -155,7 +156,7 @@ function HeatmapSection({ rooms, wsConnected, pushToast, onCheckout }) {
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6 stagger-children">
           {rooms.map((room) => {
             const c = statusCfg[room.status] || { bg: 'bg-gray-100', border: 'border-gray-200', text: 'text-gray-700' };
             return (
@@ -184,7 +185,7 @@ function HeatmapSection({ rooms, wsConnected, pushToast, onCheckout }) {
         </div>
 
         {/* Summary row */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 stagger-children">
           {[
             { label: 'Total',    value: rooms.length,                                              color: 'bg-[#1d5c28]/5 border-[#1d5c28]/20',    text: 'text-[#1d5c28]' },
             { label: 'Available', value: rooms.filter((r) => r.status === 'Available').length,    color: 'bg-[#9bc23c]/10 border-[#9bc23c]/30',   text: 'text-[#3a6e10]' },
@@ -297,7 +298,7 @@ function AssignSection({ rooms, onAssign, pushToast }) {
             </form>
 
             {result && (
-              <div className="mt-5 rounded-xl border border-[#9bc23c]/30 bg-[#9bc23c]/5 p-4">
+              <div className="mt-5 rounded-xl border border-[#9bc23c]/30 bg-[#9bc23c]/5 p-4 animate-fade-in-up">
                 <p className="mb-2 font-bold text-[#1d5c28]">✓ Room Assigned Successfully</p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div className="rounded-lg bg-white px-3 py-2">
@@ -404,6 +405,26 @@ function LookupSection({ rooms }) {
   );
 }
 
+// ── Chart helpers ─────────────────────────────────────────────────────────────
+
+const CHART_COLORS = ['#2d7a3a', '#9bc23c', '#c9b44a', '#c4845a', '#d4186e', '#52ae5e'];
+const STATUS_COLORS = { pending: '#f59e0b', in_progress: '#9bc23c', completed: '#2d7a3a', cancelled: '#d4186e' };
+
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-[#9bc23c]/20 bg-white px-3 py-2 text-xs shadow-lg">
+      {label && <p className="font-semibold text-[#0d2414] capitalize mb-1">{label}</p>}
+      {payload.map((p, i) => (
+        <p key={i} className="text-gray-600">
+          <span className="inline-block h-2 w-2 rounded-full mr-1.5" style={{ backgroundColor: p.color || p.fill }} />
+          {p.name || 'Value'}: <span className="font-bold text-[#0d2414]">{p.value}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
 // ── Analytics Section ─────────────────────────────────────────────────────────
 
 function AnalyticsSection({ rooms }) {
@@ -440,143 +461,176 @@ function AnalyticsSection({ rooms }) {
     maintenance: rooms.filter((r) => r.status === 'Maintenance').length,
   }), [rooms]);
 
-  const occupancyPct = roomStats.total > 0
-    ? Math.round((roomStats.occupied / roomStats.total) * 100)
-    : 0;
+  const occupancyPct = roomStats.total > 0 ? Math.round((roomStats.occupied / roomStats.total) * 100) : 0;
 
-  const maxCat = data ? Math.max(...Object.values(data.by_category || { _: 1 }), 1) : 1;
+  // Chart data
+  const roomPieData = [
+    { name: 'Available', value: roomStats.available, fill: '#9bc23c' },
+    { name: 'Occupied', value: roomStats.occupied, fill: '#c4845a' },
+    { name: 'Cleaning', value: roomStats.cleaning, fill: '#f59e0b' },
+    { name: 'Maintenance', value: roomStats.maintenance, fill: '#d4186e' },
+  ].filter((d) => d.value > 0);
+
+  const categoryData = data?.by_category
+    ? Object.entries(data.by_category).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }))
+    : [];
+
+  const statusData = data?.by_status
+    ? Object.entries(data.by_status).map(([name, value]) => ({ name, value, fill: STATUS_COLORS[name] || '#96d49e' }))
+    : [];
 
   return (
     <div>
       <PageHeader title="Analytics" subtitle="Live hotel performance dashboard" icon={Icon.analytics} />
       <div className="p-6 space-y-6">
-        {/* Room stats - always available */}
-        <div>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400">Room Status</h2>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-            {[
-              { label: 'Total', value: roomStats.total, color: 'bg-[#1d5c28]/5 border-[#1d5c28]/20', text: 'text-[#1d5c28]' },
-              { label: 'Available', value: roomStats.available, color: 'bg-[#9bc23c]/10 border-[#9bc23c]/30', text: 'text-[#3a6e10]' },
-              { label: 'Occupied', value: roomStats.occupied, color: 'bg-[#c4845a]/10 border-[#c4845a]/30', text: 'text-[#8a4a20]' },
-              { label: 'Cleaning', value: roomStats.cleaning, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-              { label: 'Occupancy', value: `${occupancyPct}%`, color: 'bg-[#d4186e]/5 border-[#d4186e]/20', text: 'text-[#d4186e]' },
-            ].map((s) => (
-              <div key={s.label} className={`rounded-2xl border p-4 ${s.color}`}>
-                <p className={`text-2xl font-extrabold ${s.text}`}>{s.value}</p>
-                <p className="mt-1 text-xs font-semibold text-gray-500">{s.label}</p>
-              </div>
-            ))}
-          </div>
+        {/* Room stats cards */}
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5 stagger-children">
+          {[
+            { label: 'Total', value: roomStats.total, color: 'bg-[#1d5c28]/5 border-[#1d5c28]/20', text: 'text-[#1d5c28]' },
+            { label: 'Available', value: roomStats.available, color: 'bg-[#9bc23c]/10 border-[#9bc23c]/30', text: 'text-[#3a6e10]' },
+            { label: 'Occupied', value: roomStats.occupied, color: 'bg-[#c4845a]/10 border-[#c4845a]/30', text: 'text-[#8a4a20]' },
+            { label: 'Cleaning', value: roomStats.cleaning, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+            { label: 'Occupancy', value: `${occupancyPct}%`, color: 'bg-[#d4186e]/5 border-[#d4186e]/20', text: 'text-[#d4186e]' },
+          ].map((s) => (
+            <div key={s.label} className={`rounded-2xl border p-4 ${s.color}`}>
+              <p className={`text-2xl font-extrabold ${s.text}`}>{s.value}</p>
+              <p className="mt-1 text-xs font-semibold text-gray-500">{s.label}</p>
+            </div>
+          ))}
         </div>
 
-        {/* Occupancy bar */}
-        <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-bold text-[#0d2414]">Room Occupancy</p>
-            <p className="text-sm font-bold text-[#1d5c28]">{occupancyPct}%</p>
+        {/* Room status donut + Occupancy gauge */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5 animate-fade-in-up">
+            <h3 className="mb-2 text-sm font-bold text-[#0d2414]">Room Distribution</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={roomPieData} cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} dataKey="value" strokeWidth={0}>
+                  {roomPieData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                </Pie>
+                <Tooltip content={<ChartTooltip />} />
+                <Legend verticalAlign="bottom" iconType="circle" iconSize={8} formatter={(v) => <span className="text-xs text-gray-600">{v}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
-          <div className="h-3 overflow-hidden rounded-full bg-[#f4f6ed]">
-            <div className="h-3 rounded-full bg-gradient-to-r from-[#1d5c28] to-[#9bc23c] transition-all duration-700"
-              style={{ width: `${occupancyPct}%` }} />
-          </div>
-          <div className="mt-2 flex flex-wrap gap-4 text-xs text-gray-500">
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#9bc23c]" />Available: {roomStats.available}</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#c4845a]" />Occupied: {roomStats.occupied}</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />Cleaning: {roomStats.cleaning}</span>
+
+          <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-[#0d2414]">Room Occupancy</h3>
+              <span className="text-2xl font-extrabold text-[#2d7a3a]">{occupancyPct}%</span>
+            </div>
+            <div className="h-4 overflow-hidden rounded-full bg-[#f4f6ed]">
+              <div className="h-4 rounded-full bg-gradient-to-r from-[#1d5c28] via-[#9bc23c] to-[#b4d655] transition-all duration-1000" style={{ width: `${occupancyPct}%` }} />
+            </div>
+            <div className="mt-2 flex justify-between text-[10px] text-gray-400 font-medium">
+              <span>0%</span><span>50%</span><span>100%</span>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
+                <p className="text-lg font-bold text-[#3a6e10]">{roomStats.available}</p>
+                <p className="text-[10px] text-gray-500 font-medium">Available</p>
+              </div>
+              <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
+                <p className="text-lg font-bold text-[#8a4a20]">{roomStats.occupied}</p>
+                <p className="text-[10px] text-gray-500 font-medium">Occupied</p>
+              </div>
+              <div className="rounded-xl bg-[#f4f6ed] p-3 text-center">
+                <p className="text-lg font-bold text-amber-600">{roomStats.cleaning}</p>
+                <p className="text-[10px] text-gray-500 font-medium">Cleaning</p>
+              </div>
+            </div>
           </div>
         </div>
 
         {loading && (
-          <div className="flex items-center justify-center py-10">
-            <div className="flex flex-col items-center gap-3">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#9bc23c]/30 border-t-[#2d7a3a]" />
-              <p className="text-sm text-gray-500">Loading live analytics…</p>
-            </div>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {[1, 2].map((n) => (
+              <div key={n} className="rounded-2xl border border-[#9bc23c]/10 bg-white p-5">
+                <div className="skeleton h-4 w-40 mb-4" />
+                <div className="skeleton h-48 w-full" />
+              </div>
+            ))}
           </div>
         )}
 
         {!loading && !data && (
-          <div className="rounded-2xl border border-dashed border-[#9bc23c]/40 bg-white py-10 text-center">
-            <p className="text-2xl mb-2">📊</p>
+          <div className="animate-fade-in-up rounded-2xl border border-dashed border-[#9bc23c]/40 bg-white py-10 text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[#9bc23c]/10">
+              <svg className="h-7 w-7 text-[#9bc23c]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+              </svg>
+            </div>
             <p className="text-sm font-semibold text-gray-600">Start the backend to see live analytics</p>
           </div>
         )}
 
         {!loading && data && (
           <>
-            {/* Backend stats */}
-            <div>
-              <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400">Task Overview</h2>
-              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                {[
-                  { label: 'Total Tasks', value: data.total_tasks, color: 'bg-[#1d5c28]/5 border-[#1d5c28]/20', text: 'text-[#1d5c28]' },
-                  { label: 'Occupancy Rate', value: `${data.occupancy_rate}%`, color: 'bg-[#9bc23c]/10 border-[#9bc23c]/30', text: 'text-[#3a6e10]' },
-                  { label: 'Need Cleaning', value: data.cleaning_needed || 0, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-                  { label: 'Top Request', value: data.most_requested || '—', color: 'bg-[#d4186e]/5 border-[#d4186e]/20', text: 'text-[#d4186e] text-sm' },
-                ].map((s) => (
-                  <div key={s.label} className={`rounded-2xl border p-4 ${s.color}`}>
-                    <p className={`text-2xl font-extrabold truncate ${s.text}`}>{s.value}</p>
-                    <p className="mt-1 text-xs font-semibold text-gray-500">{s.label}</p>
-                  </div>
-                ))}
-              </div>
+            {/* Task stats */}
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 stagger-children">
+              {[
+                { label: 'Total Tasks', value: data.total_tasks, color: 'bg-[#1d5c28]/5 border-[#1d5c28]/20', text: 'text-[#1d5c28]' },
+                { label: 'Occupancy Rate', value: `${data.occupancy_rate}%`, color: 'bg-[#9bc23c]/10 border-[#9bc23c]/30', text: 'text-[#3a6e10]' },
+                { label: 'Need Cleaning', value: data.cleaning_needed || 0, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+                { label: 'Top Request', value: data.most_requested || '—', color: 'bg-[#d4186e]/5 border-[#d4186e]/20', text: 'text-[#d4186e] text-sm' },
+              ].map((s) => (
+                <div key={s.label} className={`rounded-2xl border p-4 ${s.color}`}>
+                  <p className={`text-2xl font-extrabold truncate ${s.text}`}>{s.value}</p>
+                  <p className="mt-1 text-xs font-semibold text-gray-500">{s.label}</p>
+                </div>
+              ))}
             </div>
 
-            {/* By category chart */}
-            {data.by_category && Object.keys(data.by_category).length > 0 && (
-              <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5">
-                <h3 className="mb-4 text-sm font-bold text-[#0d2414]">Requests by Category</h3>
-                <div className="space-y-3">
-                  {Object.entries(data.by_category).map(([cat, count]) => (
-                    <div key={cat} className="flex items-center gap-3">
-                      <p className="w-24 text-xs font-semibold text-gray-600 capitalize truncate">{cat}</p>
-                      <div className="flex-1 overflow-hidden rounded-full bg-[#f4f6ed] h-2.5">
-                        <div className="h-2.5 rounded-full bg-gradient-to-r from-[#2d7a3a] to-[#9bc23c] transition-all duration-500"
-                          style={{ width: `${(count / maxCat) * 100}%` }} />
-                      </div>
-                      <span className="text-xs font-bold text-gray-700 w-5 text-right">{count}</span>
-                    </div>
-                  ))}
+            {/* Charts row */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              {categoryData.length > 0 && (
+                <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5 animate-fade-in-up">
+                  <h3 className="mb-4 text-sm font-bold text-[#0d2414]">Requests by Category</h3>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={categoryData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e8edd8" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <Tooltip content={<ChartTooltip />} cursor={{ fill: '#9bc23c', fillOpacity: 0.08 }} />
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={40}>
+                        {categoryData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Status breakdown */}
-            {data.by_status && (
-              <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5">
-                <h3 className="mb-3 text-sm font-bold text-[#0d2414]">Task Status Breakdown</h3>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(data.by_status).map(([s, c]) => (
-                    <span key={s} className="rounded-full bg-[#1d5c28]/5 border border-[#1d5c28]/10 px-3 py-1.5 text-xs font-semibold text-[#1d5c28]">
-                      {s}: {c}
-                    </span>
-                  ))}
+              {statusData.length > 0 && (
+                <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+                  <h3 className="mb-4 text-sm font-bold text-[#0d2414]">Task Status</h3>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <PieChart>
+                      <Pie data={statusData} cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} dataKey="value" strokeWidth={0}>
+                        {statusData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                      </Pie>
+                      <Tooltip content={<ChartTooltip />} />
+                      <Legend verticalAlign="bottom" iconType="circle" iconSize={8} formatter={(v) => <span className="text-xs text-gray-600 capitalize">{v}</span>} />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </>
         )}
 
         {/* Staff leaderboard */}
         {leaderboard.length > 0 && (
-          <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5">
+          <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-5 animate-fade-in-up">
             <h3 className="mb-4 text-sm font-bold text-[#0d2414]">Staff Leaderboard</h3>
             <div className="space-y-2">
               {leaderboard.slice(0, 8).map((staff, i) => (
                 <div key={staff.id || i} className="flex items-center gap-3 rounded-xl bg-[#f4f6ed] px-4 py-3">
                   <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold flex-shrink-0 ${
-                    i === 0 ? 'bg-[#c9b44a] text-white' :
-                    i === 1 ? 'bg-gray-400 text-white' :
-                    i === 2 ? 'bg-[#c4845a] text-white' :
-                    'bg-gray-200 text-gray-600'
+                    i === 0 ? 'bg-[#c9b44a] text-white' : i === 1 ? 'bg-gray-400 text-white' : i === 2 ? 'bg-[#c4845a] text-white' : 'bg-gray-200 text-gray-600'
                   }`}>{i + 1}</span>
                   <p className="flex-1 text-sm font-semibold text-gray-800">{staff.name}</p>
-                  <span className="rounded-full bg-white border border-[#9bc23c]/20 px-2.5 py-1 text-[10px] font-semibold text-gray-500">
-                    {staff.pool}
-                  </span>
-                  <p className="text-xs font-bold text-[#1d5c28] w-16 text-right">
-                    {staff.completed_task_count ?? staff.completed ?? 0} done
-                  </p>
+                  <span className="rounded-full bg-white border border-[#9bc23c]/20 px-2.5 py-1 text-[10px] font-semibold text-gray-500">{staff.pool}</span>
+                  <p className="text-xs font-bold text-[#1d5c28] w-16 text-right">{staff.completed_task_count ?? staff.completed ?? 0} done</p>
                 </div>
               ))}
             </div>
@@ -631,11 +685,13 @@ export default function ReceptionDashboard() {
         user={user}
         onLogout={handleLogout}
       />
-      <main className="flex-1 lg:ml-64 min-h-screen">
-        {activeSection === 'heatmap'   && <HeatmapSection rooms={rooms} wsConnected={wsConnected} pushToast={pushToast} onCheckout={updateRoomStatus} />}
-        {activeSection === 'assign'    && <AssignSection rooms={rooms} onAssign={assignRoom} pushToast={pushToast} />}
-        {activeSection === 'lookup'    && <LookupSection rooms={rooms} />}
-        {activeSection === 'analytics' && <AnalyticsSection rooms={rooms} />}
+      <main className="flex-1 lg:ml-64 min-h-screen" key={activeSection}>
+        <div className="animate-fade-in">
+          {activeSection === 'heatmap'   && <HeatmapSection rooms={rooms} wsConnected={wsConnected} pushToast={pushToast} onCheckout={updateRoomStatus} />}
+          {activeSection === 'assign'    && <AssignSection rooms={rooms} onAssign={assignRoom} pushToast={pushToast} />}
+          {activeSection === 'lookup'    && <LookupSection rooms={rooms} />}
+          {activeSection === 'analytics' && <AnalyticsSection rooms={rooms} />}
+        </div>
       </main>
 
       <Toast toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
