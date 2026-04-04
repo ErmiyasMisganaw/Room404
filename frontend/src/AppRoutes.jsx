@@ -8,6 +8,7 @@ import CafeteriaDashboard from './components/CafeteriaDashboard';
 import ReceptionDashboard from './components/ReceptionDashboard';
 import CustomerDashboard from './components/CustomerDashboard';
 import ApiWorkbench from './components/ApiWorkbench';
+import ManagerDashboard from './components/ManagerDashboard';
 import { AuthProvider, roleRouteMap, useAuth } from './context/AuthContext';
 
 function PreviewEntryPoints() {
@@ -18,6 +19,7 @@ function PreviewEntryPoints() {
     { label: 'Reception UI', path: '/preview/reception' },
     { label: 'Customer UI', path: '/preview/customer' },
     { label: 'API Workbench', path: '/preview/api' },
+    { label: 'Manager Analytics', path: '/manager' },
   ];
 
   return (
@@ -107,6 +109,8 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute allowedRoles={['customer']} />}>
             <Route path="/customer" element={<CustomerDashboard />} />
           </Route>
+
+          <Route path="/manager" element={<ManagerDashboard />} />
 
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

@@ -438,8 +438,13 @@ function AnalyticsSection({ rooms }) {
       setLoading(true);
       try {
         const [res, lb] = await Promise.all([
+<<<<<<< HEAD
           apiGet('/api/analytics').catch(() => null),
           apiGet('/api/staff/leaderboard').catch(() => []),
+=======
+          Promise.resolve(null), // analytics removed — use /manager for analytics
+          fetch(`${API}/staff/leaderboard`).then((r) => r.ok ? r.json() : []).catch(() => []),
+>>>>>>> 631ae579d8d645ace900adab9df0e34eaabbe0f6
         ]);
         setData(res);
         setLeaderboard(Array.isArray(lb) ? lb : lb?.staff || []);
