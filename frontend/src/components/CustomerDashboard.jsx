@@ -498,7 +498,7 @@ const STATIC_MENU = [
     img: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&q=80' },
   { name: 'Avocado Juice', price: 100, category: 'popular', tag: null,
     desc: 'Creamy blended avocado with chilled milk and cane sugar',
-    img: 'https://images.unsplash.com/photo-1638176066959-e349a5e5e5e5?w=400&q=80' },
+    img: '/food3.jpg' },
 ];
 
 function FoodCard({ item, qty, onAdd, onInc, onDec }) {
