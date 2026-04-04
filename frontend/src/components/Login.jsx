@@ -56,29 +56,12 @@ export default function Login() {
     if (!form.identifier.trim()) next.identifier = 'Email is required';
     if (!form.password.trim()) next.password = 'Password is required';
     if (Object.keys(next).length) { setErrors(next); return; }
-<<<<<<< HEAD
-
-    const normalizedEmail = form.identifier.trim();
-
-    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
-      setErrors((prev) => ({ ...prev, identifier: 'Enter a valid email address' }));
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const result = await login({ identifier: normalizedEmail, password: form.password });
-      if (!result.success) { pushToast(result.message || 'Invalid credentials.', 'error'); return; }
-      pushToast(`Welcome back, ${normalizedEmail}!`, 'success');
-      setTimeout(() => navigate(result.redirectTo, { replace: true }), 600);
-=======
     try {
       setLoading(true);
       const result = await login({ identifier: form.identifier, password: form.password });
       if (!result.success) { pushToast(result.message || 'Invalid credentials.', 'error'); return; }
       pushToast(`Welcome, ${form.identifier}`, 'success');
       setTimeout(() => navigate(result.redirectTo, { replace: true }), 500);
->>>>>>> 631ae579d8d645ace900adab9df0e34eaabbe0f6
     } catch {
       pushToast('Something went wrong. Please try again.', 'error');
     } finally {
@@ -148,36 +131,6 @@ export default function Login() {
           {/* Form */}
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
 
-<<<<<<< HEAD
-            {authError && (
-              <div className="mb-4 rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-                {authError}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} noValidate className="space-y-4">
-              <div>
-                <label htmlFor="identifier" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-white/40">
-                  Email
-                </label>
-                <input
-                  id="identifier"
-                  name="identifier"
-                  type="email"
-                  autoComplete="email"
-                  autoFocus
-                  value={form.identifier}
-                  onChange={handleChange}
-                  placeholder="Enter your email"
-                  className={`w-full rounded-xl border bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/20 focus:bg-white/8 focus:ring-2 ${
-                    errors.identifier
-                      ? 'border-red-400/50 focus:ring-red-400/20'
-                      : 'border-white/10 focus:border-[#9bc23c]/50 focus:ring-[#9bc23c]/15'
-                  }`}
-                />
-                {errors.identifier && <p className="mt-1 text-xs text-red-400">{errors.identifier}</p>}
-              </div>
-=======
             {/* Username */}
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35 mb-2">
@@ -199,7 +152,6 @@ export default function Login() {
               />
               {errors.identifier && <p className="mt-1.5 text-[11px] text-red-400">{errors.identifier}</p>}
             </div>
->>>>>>> 631ae579d8d645ace900adab9df0e34eaabbe0f6
 
             {/* Password */}
             <div>
@@ -231,18 +183,6 @@ export default function Login() {
               {errors.password && <p className="mt-1.5 text-[11px] text-red-400">{errors.password}</p>}
             </div>
 
-<<<<<<< HEAD
-              <button
-                type="submit"
-                disabled={loading || isLoading}
-                className="mt-2 flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#9bc23c] px-4 py-3.5 text-sm font-bold text-[#0a1f0e] shadow-lg shadow-[#9bc23c]/25 transition-all hover:bg-[#b4d655] hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#0a1f0e]/20 border-t-[#0a1f0e]" />}
-                {loading ? 'Signing in...' : isLoading ? 'Checking session...' : 'Sign In'}
-              </button>
-            </form>
-          </div>
-=======
             {/* Submit */}
             <button
               type="submit"
@@ -253,7 +193,6 @@ export default function Login() {
               {loading ? 'Signing in…' : 'Sign In'}
             </button>
           </form>
->>>>>>> 631ae579d8d645ace900adab9df0e34eaabbe0f6
 
           <p className="mt-10 text-center text-[10px] text-white/15 tracking-widest uppercase">
             Kuriftu Resort · Secure Access

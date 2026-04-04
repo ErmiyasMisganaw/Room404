@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiPost } from '../services/api';
 import {
@@ -1156,6 +1157,7 @@ function PaymentsPage({ user, foodOrders }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function CustomerDashboard() {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [activePage, setActivePage] = useState('home');
   const [cart, setCart] = useState({});
@@ -1190,7 +1192,13 @@ export default function CustomerDashboard() {
     setRequests((p) => p.filter((r) => (r.id || r) !== id));
   };
 
-  const handleLogout = () => { logout?.(); window.location.href = '/login'; };
+  const handleLogout = async () => {
+    try {
+      await logout?.();
+    } finally {
+      navigate('/login', { replace: true });
+    }
+  };
 
   const foodOrders = requests.filter((r) => r.type === 'food');
 

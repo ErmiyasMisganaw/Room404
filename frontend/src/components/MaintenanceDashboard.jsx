@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Sidebar, { Icon } from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { apiGet, apiPost } from '../services/api';
@@ -391,11 +392,18 @@ const NAV = [
 ];
 
 export default function MaintenanceDashboard() {
+  const navigate = useNavigate();
   const { user: authUser, logout } = useAuth();
   const user = authUser || { id: 'MT-001', name: 'Technician', role: 'maintenance' };
   const [activeSection, setActiveSection] = useState('issues');
 
-  const handleLogout = () => { logout?.(); window.location.href = '/login'; };
+  const handleLogout = async () => {
+    try {
+      await logout?.();
+    } finally {
+      navigate('/login', { replace: true });
+    }
+  };
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: '#f4f6ed' }}>
