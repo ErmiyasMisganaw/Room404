@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
 
 from app.db.database import Base
 
@@ -71,6 +71,7 @@ class FoodAvailability(Base):
 
     item_name = Column(String, primary_key=True, index=True)
     available_quantity = Column(Integer, default=0)
+    price = Column(Float, default=0.0)
     is_available = Column(Boolean, default=True)
     note = Column(String, default="")
     version = Column(Integer, default=1)

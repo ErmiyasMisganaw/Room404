@@ -42,9 +42,9 @@ def _seed_food_availability(db) -> None:
         return
 
     initial_items = [
-        {"item_name": "Pasta", "available_quantity": 12, "is_available": True, "note": "Initial stock"},
-        {"item_name": "Club Sandwich", "available_quantity": 8, "is_available": True, "note": "Initial stock"},
-        {"item_name": "Orange Juice", "available_quantity": 20, "is_available": True, "note": "Initial stock"},
+        {"item_name": "Pasta", "available_quantity": 12, "price": 270, "is_available": True, "note": "Initial stock"},
+        {"item_name": "Club Sandwich", "available_quantity": 8, "price": 250, "is_available": True, "note": "Initial stock"},
+        {"item_name": "Orange Juice", "available_quantity": 20, "price": 90, "is_available": True, "note": "Initial stock"},
     ]
 
     for data in initial_items:

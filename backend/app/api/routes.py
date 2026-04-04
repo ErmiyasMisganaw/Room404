@@ -248,6 +248,7 @@ def _food_to_schema(record: FoodAvailability) -> FoodAvailabilityItem:
     return FoodAvailabilityItem(
         item_name=record.item_name,
         available_quantity=record.available_quantity,
+        price=float(record.price or 0),
         is_available=record.is_available,
         version=record.version,
         updated_by=record.updated_by,
@@ -393,6 +394,7 @@ def _upsert_menu_item(
     *,
     item_name: str,
     available_quantity: int,
+    price: float,
     is_available: bool,
     note: str,
     updated_by: str,
@@ -403,6 +405,7 @@ def _upsert_menu_item(
     row = db.query(FoodAvailability).filter(FoodAvailability.item_name == key).first()
     if row:
         row.available_quantity = available_quantity
+        row.price = max(float(price or 0), 0.0)
         row.is_available = is_available
         row.note = note
         row.version = int(row.version or 1) + 1
@@ -414,6 +417,7 @@ def _upsert_menu_item(
         FoodAvailability(
             item_name=key,
             available_quantity=available_quantity,
+            price=max(float(price or 0), 0.0),
             is_available=is_available,
             note=note,
             version=1,
@@ -1194,6 +1198,7 @@ def upsert_cafeteria_availability(
         db,
         item_name=item.item_name,
         available_quantity=item.available_quantity,
+        price=item.price,
         is_available=item.is_available,
         note=item.note or "",
         updated_by=item.updated_by or "cafeteria",
@@ -1318,6 +1323,7 @@ def upsert_menu(item: MenuItemUpsertRequest, db: Session = Depends(get_db)) -> M
         db,
         item_name=item.item_name,
         available_quantity=item.available_quantity,
+        price=item.price,
         is_available=item.is_available,
         note=item.note or "",
         updated_by=item.updated_by,
@@ -1347,6 +1353,14 @@ def complete_cafeteria_task(
     _: None = Depends(_require_roles("cafeteria", "manager", "receptionist")),
     db: Session = Depends(get_db),
 ) -> TaskFeedbackRecord:
+    instruction = (
+        db.query(RoutedInstruction)
+        .filter(RoutedInstruction.instruction_id == payload.instruction_id)
+        .first()
+    )
+    if not instruction or instruction.queue_name != "food":
+        raise HTTPException(status_code=404, detail="Food order instruction not found.")
+
     feedback = upsert_task_feedback(
         TaskFeedbackUpdateRequest(
             instruction_id=payload.instruction_id,

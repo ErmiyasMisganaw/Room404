@@ -128,7 +128,11 @@ function OrdersSection() {
     setLoading(true);
     try {
       const inbox = await getInbox('food');
-      setOrders((inbox.items || []).map((o) => ({ ...o, _done: false })));
+      setOrders((inbox.items || []).map((o) => {
+        const status = `${o?.status || ''}`.trim().toLowerCase();
+        const isCompleted = status === 'completed' || status === 'done';
+        return { ...o, _done: isCompleted };
+      }));
     } catch {
       setOrders([]);
     } finally {
@@ -149,7 +153,7 @@ function OrdersSection() {
         instruction_id: String(order.instruction_id),
         note: 'Food order prepared',
       });
-      setOrders((prev) => prev.map((o) => o.instruction_id === order.instruction_id ? { ...o, _done: true } : o));
+      setOrders((prev) => prev.map((o) => o.instruction_id === order.instruction_id ? { ...o, _done: true, status: 'completed' } : o));
       pushToast(`Order #${String(order.instruction_id).slice(-6)} marked as prepared.`, 'success');
     } catch {
       pushToast('Could not complete order. Try again.', 'error');
@@ -158,8 +162,13 @@ function OrdersSection() {
     }
   };
 
-  const pending = orders.filter((o) => !o._done);
-  const done = orders.filter((o) => o._done);
+  const isDoneOrder = (order) => {
+    const status = `${order?.status || ''}`.trim().toLowerCase();
+    return order?._done || status === 'completed' || status === 'done';
+  };
+
+  const pending = orders.filter((o) => !isDoneOrder(o));
+  const done = orders.filter((o) => isDoneOrder(o));
 
   return (
     <div>
@@ -239,7 +248,7 @@ function MenuSection({ userEmail }) {
   const [updating, setUpdating] = useState('');
   const [deleting, setDeleting] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newItem, setNewItem] = useState({ item_name: '', available_quantity: 10, note: '' });
+  const [newItem, setNewItem] = useState({ item_name: '', available_quantity: 10, price: 0, note: '' });
   const [adding, setAdding] = useState(false);
 
   const pushToast = (msg, type = 'success') => {
@@ -268,6 +277,7 @@ function MenuSection({ userEmail }) {
       await updateCafeteriaAvailability({
         item_name: item.item_name,
         available_quantity: item.available_quantity ?? 0,
+        price: Number(item.price) || 0,
         is_available: !item.is_available,
         updated_by: userEmail || 'cafeteria',
         note: item.note || '',
@@ -304,12 +314,13 @@ function MenuSection({ userEmail }) {
       await addMenuItem({
         item_name: name,
         available_quantity: Number(newItem.available_quantity) || 0,
+        price: Number(newItem.price) || 0,
         is_available: true,
         note: newItem.note.trim(),
         updated_by: userEmail || 'cafeteria',
         updated_by_role: 'cafeteria',
       });
-      setNewItem({ item_name: '', available_quantity: 10, note: '' });
+      setNewItem({ item_name: '', available_quantity: 10, price: 0, note: '' });
       setShowAddForm(false);
       pushToast(`${name} added to menu.`, 'success');
       await refresh();
@@ -343,7 +354,7 @@ function MenuSection({ userEmail }) {
         {showAddForm && (
           <form onSubmit={handleAdd} className="mb-6 animate-fade-in-up rounded-2xl border border-[#9bc23c]/30 bg-white p-5 shadow-sm">
             <h3 className="text-sm font-bold text-[#0d2414] mb-4">Add New Menu Item</h3>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Item Name</label>
                 <input type="text" value={newItem.item_name}
@@ -355,6 +366,12 @@ function MenuSection({ userEmail }) {
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Quantity</label>
                 <input type="number" value={newItem.available_quantity} min={0}
                   onChange={(e) => setNewItem((p) => ({ ...p, available_quantity: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-[#9bc23c]/60 focus:ring-2 focus:ring-[#9bc23c]/10" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Price (ETB)</label>
+                <input type="number" value={newItem.price} min={0} step="0.01"
+                  onChange={(e) => setNewItem((p) => ({ ...p, price: e.target.value }))}
                   className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-[#9bc23c]/60 focus:ring-2 focus:ring-[#9bc23c]/10" />
               </div>
               <div>
@@ -408,6 +425,7 @@ function MenuSection({ userEmail }) {
                   <div>
                     <p className="font-bold text-[#0d2414]">{item.item_name}</p>
                     <p className="text-xs text-gray-500 mt-0.5">Qty: {item.available_quantity ?? '—'}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Price: ETB {Number(item.price || 0).toLocaleString()}</p>
                   </div>
                   <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${
                     item.is_available
@@ -485,7 +503,10 @@ function AnalyticsSection() {
     return () => clearInterval(id);
   }, []);
 
-  const totalOrders = orders.length;
+  const totalOrders = orders.filter((o) => {
+    const status = `${o?.status || ''}`.trim().toLowerCase();
+    return !(status === 'completed' || status === 'done');
+  }).length;
   const availableItems = menuItems.filter((i) => i.is_available).length;
   const totalItems = menuItems.length;
   const stockPct = totalItems > 0 ? Math.round((availableItems / totalItems) * 100) : 0;

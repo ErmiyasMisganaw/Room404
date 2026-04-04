@@ -574,7 +574,7 @@ function FoodPage({ user, cart, setCart, onOrderPlaced }) {
 
           return {
             name: item.item_name,
-            price: 0,
+            price: Number(item.price) || 0,
             category: 'popular',
             tag: null,
             desc: 'Freshly prepared by Kuriftu cafeteria staff.',

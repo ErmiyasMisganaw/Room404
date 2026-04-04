@@ -57,6 +57,8 @@ def ensure_additive_schema() -> None:
                 conn.execute(text("ALTER TABLE food_availability ADD COLUMN version INTEGER DEFAULT 1"))
             if "updated_by" not in food_cols:
                 conn.execute(text("ALTER TABLE food_availability ADD COLUMN updated_by VARCHAR DEFAULT 'cafeteria'"))
+            if "price" not in food_cols:
+                conn.execute(text("ALTER TABLE food_availability ADD COLUMN price FLOAT DEFAULT 0"))
 
         if "task_feedback" in existing_tables:
             feedback_cols = {col["name"] for col in inspector.get_columns("task_feedback")}

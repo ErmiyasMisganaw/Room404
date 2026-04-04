@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiGet, apiPost } from '../services/api';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
+// ── Toast ───────────────────────────────────
 
 function Toast({ toasts, onDismiss }) {
   return (

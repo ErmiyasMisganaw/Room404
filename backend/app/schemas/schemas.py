@@ -110,6 +110,7 @@ class TaskFeedbackRecord(BaseModel):
 class FoodAvailabilityItem(BaseModel):
     item_name: str
     available_quantity: int = Field(default=0, ge=0)
+    price: float = Field(default=0, ge=0)
     is_available: bool = True
     version: int = 1
     updated_by: Optional[str] = None
@@ -120,6 +121,7 @@ class FoodAvailabilityItem(BaseModel):
 class MenuItemUpsertRequest(BaseModel):
     item_name: str = Field(..., min_length=1)
     available_quantity: int = Field(default=0, ge=0)
+    price: float = Field(default=0, ge=0)
     is_available: bool = True
     note: Optional[str] = None
     updated_by: str = "cafeteria"
