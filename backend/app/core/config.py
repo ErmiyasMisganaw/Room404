@@ -1,6 +1,7 @@
 import os
 
 
+<<<<<<< HEAD
 # Required for AI routing/classification. Keep this in environment only.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 if not GEMINI_API_KEY:
@@ -8,11 +9,18 @@ if not GEMINI_API_KEY:
         "GEMINI_API_KEY is not configured. Set it via environment variable or backend/.env."
     )
 
+=======
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+>>>>>>> a81e80afe40204bd795733950261ef402a861e1a
 GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-3.1-flash-lite-preview")
 
 # Database: set DATABASE_URL for Supabase/Postgres in deployment.
 # Local fallback keeps current SQLite behavior.
+<<<<<<< HEAD
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./room404.db").strip() or "sqlite:///./room404.db"
+=======
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./room404.db")
+>>>>>>> a81e80afe40204bd795733950261ef402a861e1a
 
 # Comma-separated list, example:
 # CORS_ALLOWED_ORIGINS="http://localhost:5173,https://your-frontend.vercel.app"

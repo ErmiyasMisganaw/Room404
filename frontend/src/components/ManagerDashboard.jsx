@@ -4,7 +4,7 @@ import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { API_BASE_URL } from '../services/api';
+import { apiGet } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Sidebar, { Icon } from './Sidebar';
 
@@ -27,21 +27,12 @@ function tsLabel(iso) {
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 
-async function fetchSummary(key) {
-  const res = await fetch(`${API_BASE_URL}/api/analytics/summary-30d`, {
-    headers: { 'x-manager-key': key },
-  });
-  if (res.status === 403) throw Object.assign(new Error('forbidden'), { status: 403 });
-  if (!res.ok) throw Object.assign(new Error('server_error'), { status: res.status });
-  return res.json();
+async function fetchSummary() {
+  return apiGet('/api/analytics/summary-30d');
 }
 
-async function fetchLegacy(key) {
-  const res = await fetch(`${API_BASE_URL}/api/analytics`, {
-    headers: { 'x-manager-key': key },
-  });
-  if (!res.ok) return null;
-  return res.json();
+async function fetchLegacy() {
+  return apiGet('/api/analytics');
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -105,43 +96,6 @@ function KpiCard({ label, value, icon, color, textColor }) {
   );
 }
 
-// ─── Key Input Modal ──────────────────────────────────────────────────────────
-
-function KeyModal({ onSubmit }) {
-  const [val, setVal] = useState('');
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-7 shadow-2xl">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0d2414] text-xl">🔐</div>
-          <div>
-            <p className="font-bold text-[#0d2414]">Manager Access</p>
-            <p className="text-xs text-gray-400">Enter your manager key to continue</p>
-          </div>
-        </div>
-        <input
-          type="password"
-          autoFocus
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && val.trim() && onSubmit(val.trim())}
-          placeholder="x-manager-key"
-          className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-[#9bc23c] focus:ring-2 focus:ring-[#9bc23c]/20"
-        />
-        <button
-          type="button"
-          onClick={() => val.trim() && onSubmit(val.trim())}
-          disabled={!val.trim()}
-          className="mt-4 w-full rounded-xl bg-[#9bc23c] py-3 text-sm font-bold text-[#0d2414] transition hover:bg-[#b4d655] disabled:opacity-40"
-        >
-          Unlock Dashboard
-        </button>
-        <p className="mt-3 text-center text-xs text-gray-400">Default dev key: <code className="font-mono">manager-dev-key</code></p>
-      </div>
-    </div>
-  );
-}
-
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function ManagerDashboard() {
@@ -149,8 +103,6 @@ export default function ManagerDashboard() {
   const { user: authUser, logout } = useAuth();
   const user = authUser || { id: 'MGR-001', name: 'Manager', role: 'manager' };
 
-  const [key, setKey] = useState(() => sessionStorage.getItem('mgr_key') || '');
-  const [showKeyModal, setShowKeyModal] = useState(!sessionStorage.getItem('mgr_key'));
   const [summary, setSummary] = useState(null);
   const [legacy, setLegacy] = useState(null);
   const [status, setStatus] = useState('idle');
@@ -158,40 +110,41 @@ export default function ManagerDashboard() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const pollRef = useRef(null);
 
-  const load = useCallback(async (k) => {
-    if (!k) return;
+  const load = useCallback(async () => {
     setStatus('loading');
     try {
       const [s, l] = await Promise.all([
-        fetchSummary(k),
-        fetchLegacy(k).catch(() => null),
+        fetchSummary(),
+        fetchLegacy().catch(() => null),
       ]);
       setSummary(s);
       setLegacy(l);
       setLastRefresh(new Date().toISOString());
       setStatus('ok');
     } catch (err) {
-      if (err.status === 403) { setStatus('forbidden'); sessionStorage.removeItem('mgr_key'); }
-      else setStatus('error');
+      const message = `${err?.message || ''}`.toLowerCase();
+      if (message.includes('access denied') || message.includes('required role')) {
+        setStatus('forbidden');
+      } else {
+        setStatus('error');
+      }
     }
   }, []);
 
-  useEffect(() => { if (key && !showKeyModal) load(key); }, [key, showKeyModal, load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   useEffect(() => {
-    if (!autoRefresh || !key || showKeyModal) return;
-    pollRef.current = setInterval(() => load(key), POLL_INTERVAL);
+    if (!autoRefresh) return;
+    pollRef.current = setInterval(() => {
+      void load();
+    }, POLL_INTERVAL);
     return () => clearInterval(pollRef.current);
-  }, [autoRefresh, key, showKeyModal, load]);
+  }, [autoRefresh, load]);
 
-  const handleKeySubmit = (k) => { sessionStorage.setItem('mgr_key', k); setKey(k); setShowKeyModal(false); };
-  const handleRefresh = () => load(key);
-  const handleChangeKey = () => {
-    sessionStorage.removeItem('mgr_key'); setKey(''); setSummary(null); setLegacy(null);
-    setStatus('idle'); setShowKeyModal(true);
-  };
+  const handleRefresh = () => void load();
   const handleSignOut = async () => {
-    sessionStorage.removeItem('mgr_key');
     try { await logout?.(); } finally { navigate('/login', { replace: true }); }
   };
 
@@ -210,8 +163,6 @@ export default function ManagerDashboard() {
 
   return (
     <div className="flex min-h-screen font-sans" style={{ backgroundColor: '#f4f6ed' }}>
-      {showKeyModal && <KeyModal onSubmit={handleKeySubmit} />}
-
       <Sidebar navItems={NAV} activeSection="analytics" onSectionChange={() => {}}
         user={user} onLogout={handleSignOut} />
 
@@ -246,10 +197,6 @@ export default function ManagerDashboard() {
                 ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-[#9bc23c]" />
                 : '↻'} Refresh
             </button>
-            <button type="button" onClick={handleChangeKey}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:border-indigo-200 hover:text-indigo-600">
-              🔑 Key
-            </button>
           </div>
         </div>
 
@@ -258,11 +205,7 @@ export default function ManagerDashboard() {
             <div className="flex flex-col items-center justify-center py-24 text-center">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-3xl">🚫</div>
               <h2 className="text-lg font-semibold text-gray-800">Manager Access Required</h2>
-              <p className="mt-2 text-sm text-gray-500 max-w-sm">The key you entered was rejected.</p>
-              <button type="button" onClick={handleChangeKey}
-                className="mt-5 rounded-xl bg-[#0d2414] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1a4a22]">
-                Enter Key Again
-              </button>
+              <p className="mt-2 text-sm text-gray-500 max-w-sm">This account is not allowed to access manager analytics.</p>
             </div>
           )}
 

@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { apiPost } from '../services/api';
+import { apiPost, getCustomerRequests, getMenu } from '../services/api';
 import {
   RiHomeLine, RiRestaurantLine, RiCustomerService2Line,
   RiFileListLine, RiBankCardLine, RiMenuLine, RiCloseLine,
-  RiLogoutBoxRLine, RiWifiLine, RiTempColdLine, RiTv2Line,
+  RiWifiLine, RiTempColdLine, RiTv2Line,
   RiShieldCheckLine, RiPhoneLine, RiMapPinLine,
   RiInstagramLine, RiFacebookBoxLine, RiTwitterXLine,
   RiArrowLeftSLine, RiArrowRightSLine,
@@ -223,12 +223,12 @@ function HeroCanvas({ user }) {
 // ─── Services Carousel ────────────────────────────────────────────────────────
 
 const SERVICES = [
-  { key: 'spa',           label: 'Spa & Wellness',   icon: '🧖', desc: 'World-class treatments',      img: '/kuriftulogowithtext.webp' },
-  { key: 'gym',           label: 'Fitness Center',   icon: '🏋️', desc: '24/7 fully equipped',         img: '/kuriftulogo.jpg' },
-  { key: 'waterpark',     label: 'Water Park',       icon: '🌊', desc: 'Slides & relaxing pools',     img: '/kuriftulogowithtext.webp' },
-  { key: 'entertainment', label: 'Entertainment',    icon: '🎭', desc: 'Live shows & cultural events', img: '/kuriftulogo.jpg' },
-  { key: 'dining',        label: 'Fine Dining',      icon: '🍽️', desc: 'Curated culinary experience', img: '/kuriftulogowithtext.webp' },
-  { key: 'pool',          label: 'Infinity Pool',    icon: '🏊', desc: 'Panoramic resort views',      img: '/kuriftulogo.jpg' },
+  { key: 'spa',           label: 'Spa & Wellness',   icon: '🧖', desc: 'World-class treatments & massages',     img: '/spa.jpg' },
+  { key: 'gym',           label: 'Fitness Center',   icon: '🏋️', desc: '24/7 fully equipped gym',              img: '/gym.jpg' },
+  { key: 'waterpark',     label: 'Water Park',       icon: '🌊', desc: 'Slides & relaxing pools for all ages', img: '/waterpark.jpg' },
+  { key: 'entertainment', label: 'Entertainment',    icon: '🎭', desc: 'Live shows & cultural events',         img: '/entertainment.jpg' },
+  { key: 'dining',        label: 'Fine Dining',      icon: '🍽️', desc: 'Curated culinary experience',         img: '/food.jpg' },
+  { key: 'pool',          label: 'Infinity Pool',    icon: '🏊', desc: 'Panoramic resort views',              img: '/waterpark.jpg' },
 ];
 
 function ServicesCarousel() {
@@ -465,13 +465,13 @@ const FOOD_CATEGORIES = [
 const STATIC_MENU = [
   { name: 'Injera with Tibs', price: 180, category: 'local', tag: "Chef's Pick",
     desc: 'Traditional Ethiopian flatbread with sautéed spiced beef',
-    img: 'https://images.unsplash.com/photo-1567364816519-cbc9c4ffe1eb?w=400&q=80' },
+    img: '/food.jpg' },
   { name: 'Doro Wat', price: 220, category: 'local', tag: 'Signature',
     desc: 'Slow-cooked spicy chicken stew with boiled eggs',
-    img: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=400&q=80' },
+    img: '/food2.jpg' },
   { name: 'Shiro Fitfit', price: 150, category: 'local', tag: null,
     desc: 'Chickpea stew folded with torn injera pieces',
-    img: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&q=80' },
+    img: '/food3.jpg' },
   { name: 'Grilled Salmon', price: 380, category: 'international', tag: 'Premium',
     desc: 'Atlantic salmon fillet with lemon butter and herbs',
     img: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=400&q=80' },
@@ -552,13 +552,56 @@ function FoodPage({ user, cart, setCart, onOrderPlaced }) {
   const [activeFilter, setActiveFilter] = useState('all');
   const [ordering, setOrdering] = useState(false);
   const [showCart, setShowCart] = useState(false);
+  const [menuItems, setMenuItems] = useState(STATIC_MENU);
+  const [menuLoading, setMenuLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadMenu = async () => {
+      setMenuLoading(true);
+      try {
+        const response = await getMenu(false);
+        const availableItems = response?.items || [];
+
+        if (!isMounted) return;
+
+        const staticByName = new Map(STATIC_MENU.map((item) => [item.name.toLowerCase(), item]));
+        const merged = availableItems.map((item) => {
+          const key = `${item.item_name || ''}`.trim().toLowerCase();
+          const existing = staticByName.get(key);
+          if (existing) return existing;
+
+          return {
+            name: item.item_name,
+            price: 0,
+            category: 'popular',
+            tag: null,
+            desc: 'Freshly prepared by Kuriftu cafeteria staff.',
+            img: '/kuriftulogowithtext.webp',
+          };
+        });
+
+        setMenuItems(merged.length > 0 ? merged : STATIC_MENU);
+      } catch {
+        if (isMounted) setMenuItems(STATIC_MENU);
+      } finally {
+        if (isMounted) setMenuLoading(false);
+      }
+    };
+
+    void loadMenu();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filtered = activeFilter === 'all'
-    ? STATIC_MENU
-    : STATIC_MENU.filter((f) => f.category === activeFilter);
+    ? menuItems
+    : menuItems.filter((f) => f.category === activeFilter);
 
   const totalItems = Object.values(cart).reduce((a, b) => a + b, 0);
-  const totalPrice = STATIC_MENU.reduce((sum, item) => sum + (cart[item.name] || 0) * item.price, 0);
+  const totalPrice = menuItems.reduce((sum, item) => sum + (cart[item.name] || 0) * item.price, 0);
 
   const setQty = (name, delta) => {
     setCart((prev) => {
@@ -573,7 +616,7 @@ function FoodPage({ user, cart, setCart, onOrderPlaced }) {
     if (totalItems === 0) return;
     setOrdering(true);
     try {
-      const items = STATIC_MENU.filter((i) => cart[i.name]);
+      const items = menuItems.filter((i) => cart[i.name]);
       const orderText = items.map((i) => `${cart[i.name]}x ${i.name}`).join(', ');
       await apiPost('/api/chat', {
         name: user?.name || 'Guest',
@@ -586,10 +629,7 @@ function FoodPage({ user, cart, setCart, onOrderPlaced }) {
       setCart({});
       setShowCart(false);
     } catch {
-      const items = STATIC_MENU.filter((i) => cart[i.name]);
-      onOrderPlaced(items.map((i) => ({ ...i, qty: cart[i.name] })));
-      setCart({});
-      setShowCart(false);
+      onOrderPlaced(null, 'Could not place order. Please try again.');
     } finally {
       setOrdering(false);
     }
@@ -635,6 +675,9 @@ function FoodPage({ user, cart, setCart, onOrderPlaced }) {
 
       {/* Grid */}
       <div className="mx-auto max-w-7xl px-6 py-8">
+        {menuLoading && (
+          <p className="text-xs text-gray-400 mb-3 tracking-wide uppercase">Loading live menu…</p>
+        )}
         <p className="text-xs text-gray-400 mb-6 tracking-wide uppercase">
           {filtered.length} item{filtered.length !== 1 ? 's' : ''}
           {activeFilter !== 'all' ? ` · ${FOOD_CATEGORIES.find(c => c.key === activeFilter)?.label}` : ''}
@@ -665,7 +708,7 @@ function FoodPage({ user, cart, setCart, onOrderPlaced }) {
               </button>
             </div>
             <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
-              {STATIC_MENU.filter((i) => cart[i.name]).map((item) => (
+              {menuItems.filter((i) => cart[i.name]).map((item) => (
                 <div key={item.name} className="flex items-center gap-3 px-6 py-3.5">
                   <img src={item.img} alt={item.name} className="h-12 w-12 rounded-xl object-cover flex-shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -732,9 +775,10 @@ function GuestServicesPage({ user, onRequestSent }) {
         role: 'customer',
         user_id: `guest_${user?.roomNumber || '000'}`,
       });
-    } catch { /* record locally regardless */ }
-    finally {
       onRequestSent({ type: 'service', message: text, time: new Date().toISOString() });
+    } catch {
+      onRequestSent(null, 'Could not send request. Please try again.');
+    } finally {
       setSending(false);
       setLastSent(label || 'custom');
       setInput('');
@@ -882,7 +926,7 @@ function GuestServicesPage({ user, onRequestSent }) {
 
 // ─── Requests Page ────────────────────────────────────────────────────────────
 
-function RequestsPage({ requests, onDelete }) {
+function RequestsPage({ requests }) {
   const foodReqs = requests.filter((r) => r.type === 'food');
   const serviceReqs = requests.filter((r) => r.type !== 'food');
 
@@ -910,17 +954,11 @@ function RequestsPage({ requests, onDelete }) {
             )}
           </div>
           <p className="text-sm text-gray-700 leading-relaxed">{req.message}</p>
-          {req.items && (
+          {req.items && req.items.length > 0 && (
             <p className="mt-1 text-xs text-gray-400">{req.items.map((it) => `${it.qty}× ${it.name}`).join(' · ')}</p>
           )}
+          <p className="mt-1 text-[10px] uppercase tracking-wider text-gray-300">Status: {(req.status || 'pending').replace('_', ' ')}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => onDelete(req.id || i)}
-          className="flex-shrink-0 flex h-7 w-7 items-center justify-center rounded-lg text-gray-200 transition hover:bg-red-50 hover:text-red-400 opacity-0 group-hover:opacity-100"
-        >
-          <RiDeleteBinLine className="text-xs" />
-        </button>
       </div>
     );
   };
@@ -1122,32 +1160,81 @@ export default function CustomerDashboard() {
   const [requests, setRequests] = useState([]);
   const [toasts, setToasts] = useState([]);
 
+  const hydrateRequestItems = (rows = []) => {
+    const staticByName = new Map(STATIC_MENU.map((item) => [item.name.toLowerCase(), item]));
+
+    return rows.map((row) => {
+      const base = {
+        id: row.instruction_id,
+        type: row.type,
+        message: row.message,
+        time: row.created_at,
+        status: row.status,
+      };
+
+      if (row.type !== 'food') return base;
+
+      const text = `${row.message || ''}`;
+      const matches = [...text.matchAll(/(\d+)x\s*([^,]+)/gi)];
+      const items = matches.map((match) => {
+        const qty = Number(match[1] || 0);
+        const name = `${match[2] || ''}`.trim();
+        const staticItem = staticByName.get(name.toLowerCase());
+        return {
+          name,
+          qty,
+          price: staticItem?.price || 0,
+        };
+      });
+
+      return {
+        ...base,
+        items,
+      };
+    });
+  };
+
+  const refreshRequests = async () => {
+    const roomNumber = `${user?.roomNumber || ''}`.trim();
+    if (!roomNumber) return;
+
+    try {
+      const data = await getCustomerRequests(roomNumber);
+      setRequests(hydrateRequestItems(data?.items || []));
+    } catch {
+      setRequests([]);
+    }
+  };
+
+  useEffect(() => {
+    void refreshRequests();
+  }, [user?.roomNumber]);
+
   const pushToast = (message, type = 'success') => {
     const id = Date.now() + Math.random();
     setToasts((p) => [...p, { id, message, type }]);
     setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 3000);
   };
 
-  const handleOrderPlaced = (items) => {
-    const order = {
-      id: Date.now(),
-      type: 'food',
-      message: `Food order: ${items.map((i) => `${i.qty}x ${i.name}`).join(', ')}`,
-      items,
-      time: new Date().toISOString(),
-    };
-    setRequests((p) => [order, ...p]);
+  const handleOrderPlaced = async (items, errorMessage) => {
+    if (errorMessage) {
+      pushToast(errorMessage, 'error');
+      return;
+    }
+
+    await refreshRequests();
     pushToast('Order placed successfully!');
     setActivePage('requests');
   };
 
-  const handleRequestSent = (req) => {
-    setRequests((p) => [{ id: Date.now(), ...req }, ...p]);
-    pushToast('Request sent!');
-  };
+  const handleRequestSent = async (req, errorMessage) => {
+    if (errorMessage) {
+      pushToast(errorMessage, 'error');
+      return;
+    }
 
-  const handleDeleteRequest = (id) => {
-    setRequests((p) => p.filter((r) => (r.id || r) !== id));
+    await refreshRequests();
+    pushToast('Request sent!');
   };
 
   const handleLogout = async () => {
@@ -1169,7 +1256,7 @@ export default function CustomerDashboard() {
         {activePage === 'home'     && <HomePage user={user} />}
         {activePage === 'food'     && <FoodPage user={user} cart={cart} setCart={setCart} onOrderPlaced={handleOrderPlaced} />}
         {activePage === 'services' && <GuestServicesPage user={user} onRequestSent={handleRequestSent} />}
-        {activePage === 'requests' && <RequestsPage requests={requests} onDelete={handleDeleteRequest} />}
+        {activePage === 'requests' && <RequestsPage requests={requests} />}
         {activePage === 'payments' && <PaymentsPage user={user} foodOrders={foodOrders} />}
       </div>
 

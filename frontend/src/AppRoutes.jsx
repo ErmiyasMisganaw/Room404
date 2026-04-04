@@ -112,7 +112,7 @@ export default function AppRoutes() {
             <Route path="/manager" element={<ManagerDashboard />} />
           </Route>
 
-          {/* Unprotected fallback for direct access with key modal */}
+          {/* Unprotected preview route for manager UI */}
           <Route path="/manager/preview" element={<ManagerDashboard />} />
 
           <Route path="*" element={<Navigate to="/login" replace />} />
