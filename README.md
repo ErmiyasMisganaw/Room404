@@ -37,8 +37,9 @@ A compact hotel operations prototype that pairs a FastAPI backend (with AI-power
 - `DATABASE_URL` (optional) — if set to a Postgres/Supabase URL the app will use that; otherwise it uses SQLite at `./room404.db`.
 - `CORS_ALLOWED_ORIGINS` (optional) — comma-separated list of allowed origins for the frontend (default `*` for local dev).
 - `STAFF_COOLDOWN_MINUTES` (optional) — cooldown window used during staff assignment (default `20`).
+- `MANAGER_DASHBOARD_KEY` (recommended) — manager analytics override key for MVP role checks.
 
-Important: do not commit API keys or secrets into the repository. Although the local `app/core/config.py` contains a default string for quick testing, you should overwrite `GEMINI_API_KEY` with your own value in a secure environment (or via a `.env` / CI secret mechanism).
+Important: do not commit API keys or secrets into the repository. Keep shared placeholders in `backend/.env.example`, and each developer should create a local untracked `backend/.env`.
 
 ## Quickstart — Backend (local)
 
@@ -56,18 +57,24 @@ source .venv/bin/activate   # zsh / bash
 pip install -r requirements.txt
 ```
 
-3. (Optional) Set required environment variables. Example (macOS / zsh):
+3. Create your local environment file and fill in real values:
 
 ```bash
-export GEMINI_API_KEY="<your-gemini-key>"
-export DATABASE_URL="sqlite:///./room404.db"   # or a Postgres URL
-export CORS_ALLOWED_ORIGINS="http://localhost:5173"
+cp .env.example .env
+```
+
+Then edit `.env` with at least:
+
+```bash
+GEMINI_API_KEY=<your-gemini-key>
+DATABASE_URL=sqlite:///./room404.db
+CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```
 
 4. Run the backend with hot reload (development):
 
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --env-file .env
 ```
 
 On first start the app will create database tables and insert seed data (rooms, staff members, and cafeteria items). The backend exposes an app root and API router under `/api`.
@@ -88,6 +95,11 @@ npm run dev
 ```
 
 The frontend expects the backend to be available at the same host/port defaults used above. If you need to change CORS or ports, update `CORS_ALLOWED_ORIGINS` or your local Vite proxy settings.
+
+For frontend env overrides, use `frontend/.env.example` as a template and set:
+
+- `VITE_API_BASE_URL`
+- `VITE_WS_URL`
 
 ## Important endpoints
 
@@ -128,6 +140,32 @@ curl http://localhost:8000/api/health
 - Input: guest messages via `POST /api/chat` (JSON `ChatRequest`).
 - Output: `AgentResponseEnvelope` (encloses message, data and meta).
 - Error modes: API returns HTTP 400/422 for validation errors and HTTP 500 for AI/backend errors.
+
+## Deployment (Recommended)
+
+- Frontend: Vercel (root `frontend`, build `npm run build`, output `dist`)
+- Backend: Render Web Service (root `backend`)
+- Database: Supabase Postgres (`DATABASE_URL`)
+
+Render backend settings:
+
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Health check path: `/api/health`
+
+Set backend env vars on Render:
+
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL_NAME`
+- `DATABASE_URL`
+- `CORS_ALLOWED_ORIGINS`
+- `STAFF_COOLDOWN_MINUTES`
+- `MANAGER_DASHBOARD_KEY`
+
+Set frontend env vars on Vercel:
+
+- `VITE_API_BASE_URL=https://<your-backend>.onrender.com`
+- `VITE_WS_URL=wss://<your-backend>.onrender.com/api/ws`
 
 ## Next steps / ideas
 
