@@ -1091,6 +1091,48 @@ def accept_cleaner_task(
     )
 
 
+@router.post("/maintenance/accept-task", response_model=TaskFeedbackRecord)
+def accept_maintenance_task(
+    payload: CleanerAcceptTaskRequest,
+    _: None = Depends(_require_roles("maintenance", "manager", "receptionist")),
+    x_user_email: str | None = Header(default=None, alias="x-user-email"),
+    db: Session = Depends(get_db),
+) -> TaskFeedbackRecord:
+    maintenance_email = (x_user_email or "").strip().lower()
+    if not maintenance_email:
+        raise HTTPException(status_code=400, detail="x-user-email header is required to accept a task.")
+
+    instruction = (
+        db.query(RoutedInstruction)
+        .filter(RoutedInstruction.instruction_id == payload.instruction_id)
+        .first()
+    )
+    if not instruction or instruction.queue_name != "maintenance":
+        raise HTTPException(status_code=404, detail="Maintenance instruction not found.")
+
+    existing_feedback = (
+        db.query(TaskFeedback)
+        .filter(TaskFeedback.instruction_id == payload.instruction_id)
+        .first()
+    )
+    existing_owner = (existing_feedback.accepted_by or "").strip().lower() if existing_feedback else ""
+    if existing_owner and existing_owner != maintenance_email and existing_feedback.state in {"pending", "in_progress"}:
+        raise HTTPException(status_code=409, detail="Task already accepted by another maintenance staff member.")
+
+    note = payload.note or f"Accepted by maintenance staff {maintenance_email}."
+
+    return upsert_task_feedback(
+        TaskFeedbackUpdateRequest(
+            instruction_id=payload.instruction_id,
+            queue_name="maintenance",
+            state="pending",
+            note=note,
+            accepted_by=maintenance_email,
+        ),
+        db,
+    )
+
+
 @router.get("/feedback/task-state/{instruction_id}", response_model=TaskFeedbackRecord)
 def get_task_feedback(instruction_id: str, db: Session = Depends(get_db)) -> TaskFeedbackRecord:
     record = db.query(TaskFeedback).filter(TaskFeedback.instruction_id == instruction_id).first()

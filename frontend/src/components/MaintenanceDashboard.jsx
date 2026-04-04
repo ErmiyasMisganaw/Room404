@@ -41,9 +41,10 @@ function PageHeader({ title, subtitle, icon, actions }) {
 
 // ── Issue card ────────────────────────────────────────────────────────────────
 
-function IssueCard({ issue, onResolve, loadingId }) {
+function IssueCard({ issue, onResolve, onAccept, loadingId }) {
   const isLoading = loadingId === issue.id;
   const isDone = issue.status === 'completed';
+  const needsAccept = !isDone && !issue.acceptedByMe;
 
   const priorityDot = { High: 'bg-[#d4186e]', Medium: 'bg-amber-400', Low: 'bg-gray-300', high: 'bg-[#d4186e]', medium: 'bg-amber-400', low: 'bg-gray-300' };
 
@@ -75,7 +76,7 @@ function IssueCard({ issue, onResolve, loadingId }) {
       <button
         type="button"
         disabled={isDone || isLoading}
-        onClick={() => onResolve(issue)}
+        onClick={() => (needsAccept ? onAccept(issue) : onResolve(issue))}
         className={`flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition ${
           isDone
             ? 'bg-[#1d5c28]/5 text-[#1d5c28] cursor-default'
@@ -83,7 +84,7 @@ function IssueCard({ issue, onResolve, loadingId }) {
         }`}
       >
         {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
-        {isDone ? 'Resolved' : isLoading ? 'Resolving…' : 'Mark as Resolved'}
+        {isDone ? 'Resolved' : isLoading ? 'Saving…' : needsAccept ? 'Accept Task' : 'Mark as Resolved'}
       </button>
     </div>
   );
@@ -96,7 +97,7 @@ const fallbackIssues = [
   { id: 'm-2', room: '315', title: 'AC unit fault', description: 'Air conditioning not cooling properly', status: 'pending', priority: 'Medium' },
 ];
 
-function IssuesSection() {
+function IssuesSection({ user }) {
   const [issues, setIssues] = useState(fallbackIssues);
   const [loadingId, setLoadingId] = useState('');
   const [toasts, setToasts] = useState([]);
@@ -113,16 +114,31 @@ function IssuesSection() {
         apiGet('/api/inbox/maintenance'),
         apiGet('/api/feedback/task-state/queue/maintenance'),
       ]);
-      const fMap = new Map((feedback.items || []).map((f) => [f.instruction_id, f.state]));
-      const mapped = (inbox.items || []).map((item, i) => ({
-        id: item.instruction_id || `m-${i}`,
-        room: (item.staff_instruction?.match(/\b\d{2,4}\b/) || ['N/A'])[0],
-        title: 'Maintenance task',
-        description: item.staff_instruction || '',
-        status: fMap.get(item.instruction_id) || 'pending',
-        priority: item.priority || 'Medium',
-      }));
-      if (mapped.length) setIssues(mapped);
+      const normalizedUserEmail = (user?.email || '').trim().toLowerCase();
+      const fMap = new Map((feedback.items || []).map((f) => [f.instruction_id, f]));
+      const mapped = (inbox.items || []).map((item, i) => {
+        const record = fMap.get(item.instruction_id);
+        const acceptedBy = (record?.accepted_by || '').trim().toLowerCase();
+        const acceptedByMe = Boolean(acceptedBy && acceptedBy === normalizedUserEmail);
+        const acceptedByOther = Boolean(acceptedBy && acceptedBy !== normalizedUserEmail);
+
+        if (acceptedByOther && (record?.state || 'pending') !== 'completed') {
+          return null;
+        }
+
+        return {
+          id: item.instruction_id || `m-${i}`,
+          room: (item.staff_instruction?.match(/\b\d{2,4}\b/) || ['N/A'])[0],
+          title: 'Maintenance task',
+          description: item.staff_instruction || '',
+          status: record?.state || 'pending',
+          priority: item.priority || 'Medium',
+          acceptedByMe,
+        };
+      });
+      const visible = mapped.filter(Boolean);
+      if (visible.length) setIssues(visible);
+      else setIssues([]);
     } catch { /* keep fallback */ }
   };
 
@@ -146,6 +162,22 @@ function IssuesSection() {
       refresh();
     } catch {
       pushToast('Could not resolve issue. Try again.', 'error');
+    } finally {
+      setLoadingId('');
+    }
+  };
+
+  const handleAccept = async (issue) => {
+    setLoadingId(issue.id);
+    try {
+      await apiPost('/api/maintenance/accept-task', {
+        instruction_id: String(issue.id),
+        note: 'Maintenance accepted task.',
+      });
+      pushToast(`Room ${issue.room} task accepted.`, 'success');
+      await refresh();
+    } catch {
+      pushToast('Could not accept task. It may already be assigned.', 'error');
     } finally {
       setLoadingId('');
     }
@@ -184,7 +216,13 @@ function IssuesSection() {
                 <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400">Pending Issues</h2>
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 stagger-children">
                   {pending.map((issue) => (
-                    <IssueCard key={issue.id} issue={issue} onResolve={handleResolve} loadingId={loadingId} />
+                    <IssueCard
+                      key={issue.id}
+                      issue={issue}
+                      onResolve={handleResolve}
+                      onAccept={handleAccept}
+                      loadingId={loadingId}
+                    />
                   ))}
                 </div>
               </div>
@@ -194,7 +232,13 @@ function IssuesSection() {
                 <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400">Resolved Today</h2>
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 stagger-children">
                   {resolved.map((issue) => (
-                    <IssueCard key={issue.id} issue={issue} onResolve={handleResolve} loadingId={loadingId} />
+                    <IssueCard
+                      key={issue.id}
+                      issue={issue}
+                      onResolve={handleResolve}
+                      onAccept={handleAccept}
+                      loadingId={loadingId}
+                    />
                   ))}
                 </div>
               </div>
@@ -226,7 +270,7 @@ function ChartTooltip({ active, payload, label }) {
 
 // ── Analytics Section ─────────────────────────────────────────────��───────────
 
-function AnalyticsSection() {
+function AnalyticsSection({ user }) {
   const [issues, setIssues] = useState(fallbackIssues);
   const [analyticsData, setAnalyticsData] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
@@ -239,14 +283,25 @@ function AnalyticsSection() {
           apiGet('/api/feedback/task-state/queue/maintenance').catch(() => ({ items: [] })),
           apiGet('/api/staff/leaderboard').catch(() => []),
         ]);
-        const fMap = new Map((feedback.items || []).map((f) => [f.instruction_id, f.state]));
-        const mapped = (inbox.items || []).map((item, i) => ({
-          id: item.instruction_id || `m-${i}`,
-          room: (item.staff_instruction?.match(/\b\d{2,4}\b/) || ['N/A'])[0],
-          status: fMap.get(item.instruction_id) || 'pending',
-          priority: item.priority || 'Medium',
-        }));
+        const fMap = new Map((feedback.items || []).map((f) => [f.instruction_id, f]));
+        const mapped = (inbox.items || []).map((item, i) => {
+          const record = fMap.get(item.instruction_id);
+          const acceptedBy = (record?.accepted_by || '').trim().toLowerCase();
+          const acceptedByMe = !acceptedBy || acceptedBy === (user?.email || '').trim().toLowerCase();
+
+          if (!acceptedByMe && (record?.state || 'pending') !== 'completed') {
+            return null;
+          }
+
+          return {
+            id: item.instruction_id || `m-${i}`,
+            room: (item.staff_instruction?.match(/\b\d{2,4}\b/) || ['N/A'])[0],
+            status: record?.state || 'pending',
+            priority: item.priority || 'Medium',
+          };
+        }).filter(Boolean);
         if (mapped.length) setIssues(mapped);
+        else setIssues([]);
         setAnalyticsData(null); // analytics removed — use /manager for analytics
         setLeaderboard(Array.isArray(lb) ? lb : lb?.staff || []);
       } catch { /* keep fallback */ }
@@ -416,8 +471,8 @@ export default function MaintenanceDashboard() {
       />
       <main className="flex-1 lg:ml-64 min-h-screen" key={activeSection}>
         <div className="animate-fade-in">
-          {activeSection === 'issues'    && <IssuesSection />}
-          {activeSection === 'analytics' && <AnalyticsSection />}
+          {activeSection === 'issues'    && <IssuesSection user={user} />}
+          {activeSection === 'analytics' && <AnalyticsSection user={user} />}
         </div>
       </main>
     </div>
