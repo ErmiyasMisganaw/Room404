@@ -217,25 +217,26 @@ function AssignSection({ rooms, onAssign, pushToast }) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
     setError('');
+    setResult(null);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setResult(null);
-
-    if (!form.customerName.trim()) { setError('Customer name is required.'); return; }
+    if (!form.customerName.trim()) { setError('Guest name is required.'); return; }
+    if (!form.checkInDate) { setError('Check-in date is required.'); return; }
+    if (!form.checkOutDate) { setError('Check-out date is required.'); return; }
     const available = rooms.find((r) => r.status === 'Available' && r.type === form.roomType);
     if (!available) { setError(`No ${form.roomType} room is currently available.`); return; }
-
     try {
       setLoading(true);
       await new Promise((r) => setTimeout(r, 900));
       const username = form.customerName.trim().toLowerCase().replace(/\s+/g, '.') + available.roomNumber;
       const password = Math.random().toString(36).slice(-10);
       onAssign({ roomNumber: available.roomNumber, customerName: form.customerName.trim() });
-      setResult({ roomNumber: available.roomNumber, username, password, customerName: form.customerName.trim() });
-      setForm((prev) => ({ ...prev, customerName: '' }));
+      setResult({ roomNumber: available.roomNumber, username, password, customerName: form.customerName.trim(), checkIn: form.checkInDate, checkOut: form.checkOutDate, type: form.roomType });
+      setForm((prev) => ({ ...prev, customerName: '', checkInDate: '', checkOutDate: '' }));
       pushToast(`Room ${available.roomNumber} assigned to ${form.customerName.trim()}.`, 'success');
     } catch {
       pushToast('Assignment failed. Please try again.', 'error');
@@ -244,84 +245,180 @@ function AssignSection({ rooms, onAssign, pushToast }) {
     }
   };
 
-  const inputCls = 'w-full rounded-xl border border-[#9bc23c]/30 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition focus:border-[#2d7a3a] focus:ring-4 focus:ring-[#9bc23c]/15 placeholder:text-gray-400';
+  const availableCount = rooms.filter((r) => r.status === 'Available' && r.type === form.roomType).length;
+
+  const fieldCls = (hasError) => `w-full rounded-xl border bg-white px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-300 focus:ring-2 ${
+    hasError ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:border-[#9bc23c]/60 focus:ring-[#9bc23c]/10'
+  }`;
 
   return (
     <div>
-      <PageHeader title="Assign Room" subtitle="Register guest & assign accommodation" icon={Icon.userPlus} />
-      <div className="p-6">
-        <div className="mx-auto max-w-2xl">
-          <div className="rounded-2xl border border-[#9bc23c]/20 bg-white p-6 shadow-sm">
-            <h2 className="mb-5 text-base font-bold text-[#0d2414]">Guest Check-In</h2>
-            <form className="space-y-4" onSubmit={handleSubmit}>
-              <div>
-                <label className="mb-1.5 block text-sm font-semibold text-[#1d5c28]">Guest Full Name</label>
-                <input type="text" name="customerName" value={form.customerName} onChange={handleChange} required
-                  placeholder="e.g. Marta Bekele" className={inputCls} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-[#1d5c28]">Check-in Date</label>
-                  <input type="date" name="checkInDate" value={form.checkInDate} onChange={handleChange} required className={inputCls} />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-[#1d5c28]">Check-out Date</label>
-                  <input type="date" name="checkOutDate" value={form.checkOutDate} onChange={handleChange} required className={inputCls} />
-                </div>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-semibold text-[#1d5c28]">Room Type</label>
-                <select name="roomType" value={form.roomType} onChange={handleChange} required className={inputCls}>
-                  <option value="Single">Single</option>
-                  <option value="Double">Double</option>
-                  <option value="Suite">Suite</option>
-                </select>
-              </div>
+      <PageHeader title="Guest Check-In" subtitle="Assign accommodation & generate access credentials" icon={Icon.userPlus} />
+      <div className="p-6" style={{ backgroundColor: '#f9fafb', minHeight: 'calc(100vh - 64px)' }}>
+        <div className="mx-auto max-w-3xl">
 
-              {/* Available count hint */}
-              <p className="text-xs text-gray-500">
-                {rooms.filter((r) => r.status === 'Available' && r.type === form.roomType).length} {form.roomType} room(s) available
-              </p>
+          {/* Available rooms summary */}
+          <div className="grid grid-cols-3 gap-4 mb-8">
+            {['Single', 'Double', 'Suite'].map((type) => {
+              const count = rooms.filter((r) => r.status === 'Available' && r.type === type).length;
+              return (
+                <div key={type} className="rounded-2xl bg-white border border-gray-100 p-4 shadow-sm text-center">
+                  <p className="text-2xl font-bold" style={{ color: count > 0 ? '#1d5c28' : '#d4186e' }}>{count}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 uppercase tracking-wider">{type}</p>
+                  <p className="text-[10px] mt-1" style={{ color: count > 0 ? '#9bc23c' : '#d4186e' }}>
+                    {count > 0 ? 'Available' : 'Full'}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
 
-              {error && (
-                <div className="rounded-xl border border-[#d4186e]/30 bg-[#d4186e]/5 px-4 py-3 text-sm font-medium text-[#d4186e]">
-                  {error}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+
+            {/* Form — wider */}
+            <div className="lg:col-span-3">
+              <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-6 py-5 border-b border-gray-50">
+                  <h2 className="font-semibold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>New Guest Registration</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">Fill in guest details to assign a room</p>
+                </div>
+
+                <form className="px-6 py-5 space-y-4" onSubmit={handleSubmit}>
+                  {/* Guest name */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-2">
+                      Guest Full Name
+                    </label>
+                    <input type="text" name="customerName" value={form.customerName} onChange={handleChange}
+                      placeholder="e.g. Marta Bekele" className={fieldCls(false)} />
+                  </div>
+
+                  {/* Dates */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-2">
+                        Check-in
+                      </label>
+                      <input type="date" name="checkInDate" value={form.checkInDate} onChange={handleChange}
+                        className={fieldCls(false)} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-2">
+                        Check-out
+                      </label>
+                      <input type="date" name="checkOutDate" value={form.checkOutDate} onChange={handleChange}
+                        className={fieldCls(false)} />
+                    </div>
+                  </div>
+
+                  {/* Room type */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-2">
+                      Room Type
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {['Single', 'Double', 'Suite'].map((type) => {
+                        const cnt = rooms.filter((r) => r.status === 'Available' && r.type === type).length;
+                        return (
+                          <button key={type} type="button"
+                            onClick={() => { setForm((p) => ({ ...p, roomType: type })); setError(''); }}
+                            className={`rounded-xl border py-2.5 text-xs font-semibold transition-all ${
+                              form.roomType === type
+                                ? 'border-[#1d5c28] bg-[#1d5c28] text-white shadow-sm'
+                                : cnt > 0
+                                  ? 'border-gray-200 bg-white text-gray-600 hover:border-[#9bc23c]/50'
+                                  : 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
+                            }`}
+                            disabled={cnt === 0}>
+                            {type}
+                            <span className={`block text-[10px] mt-0.5 font-normal ${form.roomType === type ? 'text-white/70' : 'text-gray-400'}`}>
+                              {cnt} free
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-600">
+                      {error}
+                    </div>
+                  )}
+
+                  <button type="submit" disabled={loading || availableCount === 0}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white shadow-md transition hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                    style={{ backgroundColor: '#1d5c28' }}>
+                    {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
+                    {loading ? 'Assigning…' : 'Assign Room & Generate Credentials'}
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            {/* Result / info panel */}
+            <div className="lg:col-span-2 space-y-4">
+              {result ? (
+                <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#9bc23c]/15">
+                      <svg className="h-3.5 w-3.5 text-[#1d5c28]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <p className="text-sm font-semibold text-gray-900">Room Assigned</p>
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {[
+                      { label: 'Guest', value: result.customerName },
+                      { label: 'Room', value: `#${result.roomNumber} · ${result.type}` },
+                      { label: 'Check-in', value: result.checkIn },
+                      { label: 'Check-out', value: result.checkOut },
+                    ].map((s) => (
+                      <div key={s.label} className="flex items-center justify-between px-5 py-3">
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wider">{s.label}</p>
+                        <p className="text-xs font-semibold text-gray-900">{s.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="px-5 py-4 bg-[#f9fafb] border-t border-gray-50">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-3">Login Credentials</p>
+                    <div className="space-y-2">
+                      {[
+                        { label: 'Username', value: result.username },
+                        { label: 'Password', value: result.password },
+                      ].map((c) => (
+                        <div key={c.label} className="flex items-center justify-between rounded-lg bg-white border border-gray-100 px-3 py-2.5">
+                          <p className="text-[10px] text-gray-400">{c.label}</p>
+                          <p className="font-mono text-xs font-bold text-gray-900">{c.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-[10px] text-gray-400 leading-relaxed">
+                      Share these credentials with the guest. Password should be changed on first login.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-4">Quick Guide</p>
+                  <div className="space-y-3">
+                    {[
+                      { step: '1', text: 'Enter the guest\'s full name' },
+                      { step: '2', text: 'Set check-in and check-out dates' },
+                      { step: '3', text: 'Select preferred room type' },
+                      { step: '4', text: 'Click assign to generate credentials' },
+                    ].map((s) => (
+                      <div key={s.step} className="flex items-start gap-3">
+                        <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white mt-0.5"
+                          style={{ backgroundColor: '#9bc23c' }}>{s.step}</div>
+                        <p className="text-xs text-gray-500 leading-relaxed">{s.text}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1d5c28] py-3 text-sm font-bold text-white shadow-lg shadow-[#1d5c28]/20 transition hover:bg-[#2d7a3a] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
-                {loading ? 'Assigning Room…' : 'Assign Room & Generate Credentials'}
-              </button>
-            </form>
-
-            {result && (
-              <div className="mt-5 rounded-xl border border-[#9bc23c]/30 bg-[#9bc23c]/5 p-4 animate-fade-in-up">
-                <p className="mb-2 font-bold text-[#1d5c28]">✓ Room Assigned Successfully</p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded-lg bg-white px-3 py-2">
-                    <p className="text-xs text-gray-500">Room</p>
-                    <p className="font-bold text-[#0d2414]">#{result.roomNumber}</p>
-                  </div>
-                  <div className="rounded-lg bg-white px-3 py-2">
-                    <p className="text-xs text-gray-500">Guest</p>
-                    <p className="font-bold text-[#0d2414] truncate">{result.customerName}</p>
-                  </div>
-                  <div className="rounded-lg bg-white px-3 py-2">
-                    <p className="text-xs text-gray-500">Username</p>
-                    <p className="font-mono text-xs font-bold text-[#0d2414] truncate">{result.username}</p>
-                  </div>
-                  <div className="rounded-lg bg-white px-3 py-2">
-                    <p className="text-xs text-gray-500">Password</p>
-                    <p className="font-mono text-xs font-bold text-[#0d2414]">{result.password}</p>
-                  </div>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
