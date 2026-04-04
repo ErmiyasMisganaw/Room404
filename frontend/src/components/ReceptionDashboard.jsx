@@ -437,7 +437,7 @@ function AnalyticsSection({ rooms }) {
       setLoading(true);
       try {
         const [res, lb] = await Promise.all([
-          fetch(`${API}/analytics`).then((r) => r.ok ? r.json() : null).catch(() => null),
+          Promise.resolve(null), // analytics removed — use /manager for analytics
           fetch(`${API}/staff/leaderboard`).then((r) => r.ok ? r.json() : []).catch(() => []),
         ]);
         setData(res);

@@ -233,10 +233,9 @@ function AnalyticsSection() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [inbox, feedback, analytics, lb] = await Promise.all([
+        const [inbox, feedback, lb] = await Promise.all([
           apiGet('/api/inbox/maintenance').catch(() => ({ items: [] })),
           apiGet('/api/feedback/task-state/queue/maintenance').catch(() => ({ items: [] })),
-          apiGet('/api/analytics').catch(() => null),
           apiGet('/api/staff/leaderboard').catch(() => []),
         ]);
         const fMap = new Map((feedback.items || []).map((f) => [f.instruction_id, f.state]));
@@ -247,7 +246,7 @@ function AnalyticsSection() {
           priority: item.priority || 'Medium',
         }));
         if (mapped.length) setIssues(mapped);
-        setAnalyticsData(analytics);
+        setAnalyticsData(null); // analytics removed — use /manager for analytics
         setLeaderboard(Array.isArray(lb) ? lb : lb?.staff || []);
       } catch { /* keep fallback */ }
     };

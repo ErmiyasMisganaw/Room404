@@ -1,9 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { apiPost } from '../services/api';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, MeshReflectorMaterial } from '@react-three/drei';
-import * as THREE from 'three';
+import {
+  RiHomeLine, RiRestaurantLine, RiCustomerService2Line,
+  RiFileListLine, RiBankCardLine, RiMenuLine, RiCloseLine,
+  RiLogoutBoxRLine, RiWifiLine, RiTempColdLine, RiTv2Line,
+  RiShieldCheckLine, RiPhoneLine, RiMapPinLine,
+  RiInstagramLine, RiFacebookBoxLine, RiTwitterXLine,
+  RiArrowLeftSLine, RiArrowRightSLine,
+  RiSendPlaneLine, RiCheckLine, RiDeleteBinLine,
+  RiHotelBedLine, RiDropLine, RiLeafLine,
+  RiScissorsCutLine, RiMoonLine, RiToolsLine,
+} from 'react-icons/ri';
+import { MdOutlineBathtub, MdOutlineCoffeeMaker, MdOutlineLocalLaundryService } from 'react-icons/md';
+import { LuSparkles } from 'react-icons/lu';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -16,13 +26,30 @@ function getGreeting() {
 
 function Toast({ toasts, onDismiss }) {
   return (
-    <div className="fixed right-4 top-4 z-[100] flex w-80 flex-col gap-2">
+    <div className="fixed right-5 top-5 z-[100] flex flex-col gap-2.5 pointer-events-none">
       {toasts.map((t) => (
-        <div key={t.id} className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm shadow-xl backdrop-blur-sm ${
-          t.type === 'success' ? 'border-[#9bc23c]/40 bg-white text-[#2d5c10]' : 'border-red-300 bg-red-50 text-red-700'
-        }`}>
-          <p className="font-medium">{t.message}</p>
-          <button type="button" onClick={() => onDismiss(t.id)} className="text-xs opacity-50 hover:opacity-100">✕</button>
+        <div
+          key={t.id}
+          className="pointer-events-auto flex items-center gap-3 rounded-2xl px-4 py-3.5 shadow-2xl backdrop-blur-md border"
+          style={{
+            background: t.type === 'success'
+              ? 'linear-gradient(135deg, #0d2414 0%, #1a3a1e 100%)'
+              : 'linear-gradient(135deg, #3b0a0a 0%, #5c1a1a 100%)',
+            borderColor: t.type === 'success' ? 'rgba(155,194,60,0.3)' : 'rgba(220,38,38,0.3)',
+            animation: 'slideInRight 0.3s cubic-bezier(0.34,1.56,0.64,1)',
+            minWidth: 260,
+          }}
+        >
+          <div className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full ${
+            t.type === 'success' ? 'bg-[#9bc23c]/20' : 'bg-red-500/20'
+          }`}>
+            <RiCheckLine className={`text-sm ${t.type === 'success' ? 'text-[#9bc23c]' : 'text-red-400'}`} />
+          </div>
+          <p className="flex-1 text-xs font-medium text-white/90 leading-snug">{t.message}</p>
+          <button type="button" onClick={() => onDismiss(t.id)}
+            className="flex-shrink-0 text-white/30 transition hover:text-white/70">
+            <RiCloseLine className="text-sm" />
+          </button>
         </div>
       ))}
     </div>
@@ -32,88 +59,107 @@ function Toast({ toasts, onDismiss }) {
 // ─── Navbar ───────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
-  { key: 'home', label: 'Home' },
-  { key: 'food', label: 'Food Order' },
-  { key: 'services', label: 'Guest Services' },
-  { key: 'requests', label: 'Requests' },
-  { key: 'payments', label: 'Payments' },
+  { key: 'home',     label: 'Home',           Icon: RiHomeLine },
+  { key: 'food',     label: 'Food Order',      Icon: RiRestaurantLine },
+  { key: 'services', label: 'Guest Services',  Icon: RiCustomerService2Line },
+  { key: 'requests', label: 'Requests',        Icon: RiFileListLine },
+  { key: 'payments', label: 'Payments',        Icon: RiBankCardLine },
 ];
 
-function Navbar({ active, onNav, user, onLogout }) {
+function Navbar({ active, onNav, user, onLogout, transparent }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
+  const base = transparent
+    ? 'absolute top-0 left-0 right-0 z-50 bg-transparent'
+    : 'sticky top-0 z-50 bg-[#0d2414]/95 backdrop-blur-md shadow-lg';
+
   return (
-    <nav className="sticky top-0 z-50 border-b border-[#9bc23c]/20 bg-white/95 backdrop-blur-md shadow-sm">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+    <nav className={`${base} transition-all duration-300`}>
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+
         {/* Logo */}
-        <div className="flex items-center gap-3">
-          <img src="/kuriftulogo.jpg" alt="Kuriftu" className="h-10 w-10 rounded-xl object-cover shadow-sm" />
+        <button type="button" onClick={() => onNav('home')} className="flex items-center gap-3 group">
+          <img src="/kuriftulogo.jpg" alt="Kuriftu" className="h-9 w-9 rounded-lg object-cover shadow-md ring-1 ring-white/20" />
           <div className="hidden sm:block">
-            <p className="text-sm font-bold text-[#0d2414] leading-tight">Kuriftu Resort</p>
-            <p className="text-[10px] text-[#9bc23c] font-semibold uppercase tracking-wider">Luxury Experience</p>
+            <p style={{ fontFamily: 'Georgia, serif', letterSpacing: '0.08em', fontSize: '0.95rem' }}
+              className="font-semibold text-white leading-tight tracking-wide">
+              KURIFTU
+            </p>
+            <p className="text-[9px] text-[#9bc23c] uppercase tracking-[0.25em] font-medium">Resort & Spa</p>
           </div>
-        </div>
+        </button>
 
         {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-1">
-          {NAV_ITEMS.map((item) => (
+          {NAV_ITEMS.map(({ key, label, Icon }) => (
             <button
-              key={item.key}
+              key={key}
               type="button"
-              onClick={() => onNav(item.key)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-                active === item.key
-                  ? 'bg-[#9bc23c] text-[#0d2414] shadow-sm'
-                  : 'text-gray-600 hover:bg-[#9bc23c]/10 hover:text-[#0d2414]'
+              onClick={() => onNav(key)}
+              className={`relative flex items-center gap-1.5 px-4 py-2 text-xs font-medium tracking-widest uppercase transition-all duration-200 rounded-lg ${
+                active === key
+                  ? 'text-[#9bc23c]'
+                  : 'text-white/60 hover:text-white'
               }`}
+              style={{ letterSpacing: '0.1em' }}
             >
-              {item.label}
+              <Icon className="text-sm flex-shrink-0" />
+              {label}
+              {active === key && (
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-4 rounded-full bg-[#9bc23c]" />
+              )}
             </button>
           ))}
         </div>
 
-        {/* User + logout */}
+        {/* Right side */}
         <div className="flex items-center gap-3">
-          <div className="hidden sm:block text-right">
-            <p className="text-xs font-semibold text-[#0d2414]">{user?.name}</p>
-            <p className="text-[10px] text-gray-400">Room {user?.roomNumber || '—'}</p>
-          </div>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0d2414] text-white text-sm font-bold shadow">
-            {(user?.name || 'G')[0].toUpperCase()}
+          <div className="hidden sm:flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#9bc23c] text-[#0d2414] text-xs font-bold shadow">
+              {(user?.name || 'G')[0].toUpperCase()}
+            </div>
+            <div className="hidden lg:block">
+              <p className="text-xs font-semibold text-white leading-tight">{user?.name}</p>
+              <p className="text-[10px] text-white/40 tracking-wide">Room {user?.roomNumber || '—'}</p>
+            </div>
           </div>
           <button
             type="button"
             onClick={onLogout}
-            className="hidden sm:flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:border-red-200 hover:text-red-500"
+            className="hidden sm:flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-[10px] font-medium text-white/50 uppercase tracking-widest transition hover:border-red-400/40 hover:text-red-400"
           >
+            <RiLogoutBoxRLine className="text-sm" />
             Sign out
           </button>
-          {/* Mobile hamburger */}
-          <button type="button" onClick={() => setMenuOpen((p) => !p)} className="flex md:hidden h-9 w-9 items-center justify-center rounded-lg border border-gray-200">
-            <svg className="h-4 w-4 text-gray-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d={menuOpen ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'} />
-            </svg>
+          <button type="button" onClick={() => setMenuOpen((p) => !p)}
+            className="flex md:hidden h-9 w-9 items-center justify-center rounded-lg border border-white/15 text-white/70 transition hover:text-white">
+            {menuOpen ? <RiCloseLine className="text-lg" /> : <RiMenuLine className="text-lg" />}
           </button>
         </div>
       </div>
 
-      {/* Mobile menu */}
+      {/* Mobile drawer */}
       {menuOpen && (
-        <div className="border-t border-gray-100 bg-white px-4 pb-4 md:hidden">
-          <div className="mt-3 flex flex-col gap-1">
-            {NAV_ITEMS.map((item) => (
+        <div className="border-t border-white/10 bg-[#0d2414]/98 backdrop-blur-md px-6 pb-5 md:hidden">
+          <div className="mt-4 flex flex-col gap-1">
+            {NAV_ITEMS.map(({ key, label, Icon }) => (
               <button
-                key={item.key}
+                key={key}
                 type="button"
-                onClick={() => { onNav(item.key); setMenuOpen(false); }}
-                className={`rounded-lg px-4 py-2.5 text-sm font-medium text-left transition ${
-                  active === item.key ? 'bg-[#9bc23c] text-[#0d2414]' : 'text-gray-600 hover:bg-gray-50'
+                onClick={() => { onNav(key); setMenuOpen(false); }}
+                className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-left transition ${
+                  active === key
+                    ? 'bg-[#9bc23c]/15 text-[#9bc23c]'
+                    : 'text-white/60 hover:text-white hover:bg-white/5'
                 }`}
               >
-                {item.label}
+                <Icon className="text-base" />
+                {label}
               </button>
             ))}
-            <button type="button" onClick={onLogout} className="mt-2 rounded-lg px-4 py-2.5 text-sm font-medium text-left text-red-500 hover:bg-red-50">
+            <button type="button" onClick={onLogout}
+              className="mt-2 flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-left text-red-400/70 hover:text-red-400 hover:bg-red-400/5 transition">
+              <RiLogoutBoxRLine className="text-base" />
               Sign out
             </button>
           </div>
@@ -123,210 +169,166 @@ function Navbar({ active, onNav, user, onLogout }) {
   );
 }
 
-// ─── 3D Room Components ───────────────────────────────────────────────────────
-
-function Bed() {
-  return (
-    <group position={[0, -0.3, -1.2]}>
-      <mesh castShadow receiveShadow>
-        <boxGeometry args={[2.2, 0.25, 1.4]} />
-        <meshStandardMaterial color="#5c3d2e" roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 0.2, 0]} castShadow>
-        <boxGeometry args={[2.1, 0.18, 1.3]} />
-        <meshStandardMaterial color="#f5f0e8" roughness={0.9} />
-      </mesh>
-      <mesh position={[-0.55, 0.35, -0.3]} castShadow>
-        <boxGeometry args={[0.7, 0.12, 0.45]} />
-        <meshStandardMaterial color="#ffffff" roughness={1} />
-      </mesh>
-      <mesh position={[0.55, 0.35, -0.3]} castShadow>
-        <boxGeometry args={[0.7, 0.12, 0.45]} />
-        <meshStandardMaterial color="#ffffff" roughness={1} />
-      </mesh>
-      <mesh position={[0, 0.32, 0.25]} castShadow>
-        <boxGeometry args={[2.05, 0.08, 0.8]} />
-        <meshStandardMaterial color="#1a4a22" roughness={0.95} />
-      </mesh>
-      <mesh position={[0, 0.55, -0.72]} castShadow>
-        <boxGeometry args={[2.2, 0.9, 0.1]} />
-        <meshStandardMaterial color="#3d2b1f" roughness={0.7} />
-      </mesh>
-    </group>
-  );
-}
-
-function NightStand({ x }) {
-  return (
-    <group position={[x, -0.55, -1.2]}>
-      <mesh castShadow>
-        <boxGeometry args={[0.45, 0.5, 0.4]} />
-        <meshStandardMaterial color="#4a3728" roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 0.38, 0]} castShadow>
-        <cylinderGeometry args={[0.04, 0.06, 0.3, 8]} />
-        <meshStandardMaterial color="#c8a96e" metalness={0.6} roughness={0.3} />
-      </mesh>
-      <mesh position={[0, 0.6, 0]}>
-        <coneGeometry args={[0.18, 0.22, 12, 1, true]} />
-        <meshStandardMaterial color="#f5e6c8" side={THREE.DoubleSide} roughness={0.9} />
-      </mesh>
-      <pointLight position={[0, 0.55, 0]} intensity={0.8} color="#ffd580" distance={2.5} decay={2} />
-    </group>
-  );
-}
-
-function RoomScene() {
-  const groupRef = useRef();
-  useFrame((state) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.07) * 0.03;
-    }
-  });
-  return (
-    <group ref={groupRef}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.8, 0]} receiveShadow>
-        <planeGeometry args={[8, 8]} />
-        <MeshReflectorMaterial color="#c8a96e" roughness={0.4} metalness={0.1} mirror={0.25} blur={[200, 80]} mixBlur={0.7} mixStrength={0.4} />
-      </mesh>
-      <mesh position={[0, 1.2, -2.5]} receiveShadow>
-        <planeGeometry args={[8, 6]} />
-        <meshStandardMaterial color="#f0ebe0" roughness={1} />
-      </mesh>
-      <mesh rotation={[0, Math.PI / 2, 0]} position={[-3.5, 1.2, 0]} receiveShadow>
-        <planeGeometry args={[8, 6]} />
-        <meshStandardMaterial color="#ede8dd" roughness={1} />
-      </mesh>
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 2.8, 0]}>
-        <planeGeometry args={[8, 8]} />
-        <meshStandardMaterial color="#f8f5ef" roughness={1} />
-      </mesh>
-      <mesh position={[0, 2.75, -0.5]}>
-        <cylinderGeometry args={[0.25, 0.25, 0.06, 16]} />
-        <meshStandardMaterial color="#fffde0" emissive="#fffde0" emissiveIntensity={1.5} />
-      </mesh>
-      <pointLight position={[0, 2.5, -0.5]} intensity={2.5} color="#fff8e7" distance={7} decay={1.5} />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.79, 0.2]} receiveShadow>
-        <planeGeometry args={[3, 2]} />
-        <meshStandardMaterial color="#7a3b10" roughness={1} />
-      </mesh>
-      <Bed />
-      <NightStand x={-1.35} />
-      <NightStand x={1.35} />
-      <mesh position={[2.8, 1.2, -1.5]} rotation={[0, -Math.PI / 2, 0]}>
-        <planeGeometry args={[1.8, 1.6]} />
-        <meshStandardMaterial color="#a8d8ea" transparent opacity={0.3} roughness={0} metalness={0.1} />
-      </mesh>
-      <rectAreaLight position={[2.6, 1.2, -1.5]} rotation={[0, -Math.PI / 2, 0]} width={1.8} height={1.6} intensity={4} color="#c8e8ff" />
-      {[-0.95, 0.95].map((x, i) => (
-        <mesh key={i} position={[2.79, 1.2, -1.5 + x]} rotation={[0, -Math.PI / 2, 0]}>
-          <planeGeometry args={[0.9, 1.8]} />
-          <meshStandardMaterial color="#1a4a22" roughness={1} side={THREE.DoubleSide} />
-        </mesh>
-      ))}
-      <mesh position={[-2.8, -0.3, 0.5]} castShadow>
-        <boxGeometry args={[0.5, 1.0, 1.2]} />
-        <meshStandardMaterial color="#3d2b1f" roughness={0.7} />
-      </mesh>
-      <mesh position={[-2.78, 0.6, 0.5]}>
-        <planeGeometry args={[0.8, 0.9]} />
-        <meshStandardMaterial color="#c8d8e0" metalness={0.9} roughness={0.05} />
-      </mesh>
-      <ambientLight intensity={0.45} color="#fff5e0" />
-    </group>
-  );
-}
-
 function HeroCanvas({ user }) {
   return (
-    <div className="relative w-full overflow-hidden" style={{ height: 520, background: 'linear-gradient(180deg,#0d1a10 0%,#1a3020 100%)' }}>
-      <Canvas shadows camera={{ position: [2.5, 1.2, 3.5], fov: 52 }}
-        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1 }}>
-        <Environment preset="apartment" />
-        <RoomScene />
-        <OrbitControls enableZoom={false} enablePan={false}
-          minPolarAngle={Math.PI / 4} maxPolarAngle={Math.PI / 2.2}
-          minAzimuthAngle={-Math.PI / 5} maxAzimuthAngle={Math.PI / 5}
-          autoRotate autoRotateSpeed={0.4} />
-      </Canvas>
-      {/* Overlay */}
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <p className="text-[#9bc23c] text-xs font-bold uppercase tracking-[0.3em] mb-3 drop-shadow-lg">
-          {getGreeting()}
-        </p>
-        <h1 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight mb-1"
-          style={{ textShadow: '0 4px 32px rgba(0,0,0,0.8)' }}>
+    <div className="relative w-full overflow-hidden" style={{ height: 560 }}>
+      {/* Room photo */}
+      <img
+        src="/room.jpg"
+        alt="Kuriftu Resort Room"
+        className="absolute inset-0 h-full w-full object-cover object-center"
+      />
+
+      {/* Multi-layer overlay: dark vignette + bottom fade */}
+      <div className="absolute inset-0" style={{
+        background: 'linear-gradient(to bottom, rgba(8,20,10,0.45) 0%, rgba(8,20,10,0.25) 40%, rgba(8,20,10,0.72) 100%)'
+      }} />
+      {/* Subtle left-side darkening so text pops */}
+      <div className="absolute inset-0" style={{
+        background: 'linear-gradient(to right, rgba(8,20,10,0.55) 0%, transparent 60%)'
+      }} />
+
+      {/* Text — left-aligned, vertically centered */}
+      <div className="absolute inset-0 flex flex-col justify-center px-8 sm:px-14 lg:px-20">
+        {/* Eyebrow */}
+        <div className="flex items-center gap-3 mb-5">
+          <div className="h-px w-8 bg-[#9bc23c]" />
+          <p style={{
+            color: '#9bc23c',
+            fontSize: '0.7rem',
+            fontWeight: 700,
+            letterSpacing: '0.22em',
+            textTransform: 'uppercase',
+          }}>
+            {getGreeting()}
+          </p>
+        </div>
+
+        {/* Main heading */}
+        <h1 style={{
+          color: '#ffffff',
+          fontSize: 'clamp(2rem, 5vw, 3.25rem)',
+          fontWeight: 300,
+          lineHeight: 1.15,
+          letterSpacing: '-0.01em',
+          textShadow: '0 2px 24px rgba(0,0,0,0.5)',
+          marginBottom: '0.25rem',
+        }}>
           Welcome back,
         </h1>
-        <h2 className="text-3xl sm:text-4xl font-extrabold"
-          style={{ color: '#9bc23c', textShadow: '0 4px 32px rgba(0,0,0,0.7)' }}>
+        <h2 style={{
+          color: '#ffffff',
+          fontSize: 'clamp(2.2rem, 5.5vw, 3.75rem)',
+          fontWeight: 700,
+          lineHeight: 1.1,
+          letterSpacing: '-0.02em',
+          textShadow: '0 2px 32px rgba(0,0,0,0.6)',
+          marginBottom: '1.25rem',
+        }}>
           {user?.name}
         </h2>
-        <p className="mt-3 text-white/50 text-sm" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
-          Room {user?.roomNumber || '—'} · Kuriftu Resort
-        </p>
+
+        {/* Divider */}
+        <div className="h-px w-12 bg-[#9bc23c] mb-5" />
+
+        {/* Sub-info */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span style={{ color: '#9bc23c', fontSize: '0.75rem' }}>🏨</span>
+            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.8rem', fontWeight: 500, letterSpacing: '0.04em' }}>
+              Room {user?.roomNumber || '—'}
+            </p>
+          </div>
+          <div className="h-3 w-px bg-white/20" />
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem', letterSpacing: '0.04em' }}>
+            Kuriftu Resort & Spa
+          </p>
+        </div>
       </div>
-      {/* Bottom fade into page bg */}
-      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-20"
+
+      {/* Bottom fade into page background */}
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-24"
         style={{ background: 'linear-gradient(to top, #f7f9f2, transparent)' }} />
     </div>
   );
 }
 
-// ─── Services Slider ──────────────────────────────────────────────────────────
+// ─── Services Carousel ────────────────────────────────────────────────────────
 
 const SERVICES = [
-  { key: 'spa', label: 'Spa & Wellness', emoji: '🧖', desc: 'Rejuvenate with world-class spa treatments and massages', img: '/kuriftulogowithtext.webp', accent: '#f9a8d4', overlay: 'from-rose-950/75 to-pink-900/50' },
-  { key: 'gym', label: 'Fitness Center', emoji: '🏋️', desc: '24/7 fully equipped gym with personal trainers available', img: '/kuriftulogo.jpg', accent: '#93c5fd', overlay: 'from-blue-950/75 to-indigo-900/50' },
-  { key: 'waterpark', label: 'Water Park', emoji: '🌊', desc: 'Thrilling slides and relaxing pools for all ages', img: '/kuriftulogowithtext.webp', accent: '#67e8f9', overlay: 'from-cyan-950/75 to-teal-900/50' },
-  { key: 'entertainment', label: 'Entertainment', emoji: '🎭', desc: 'Live shows, cultural events and vibrant evening activities', img: '/kuriftulogo.jpg', accent: '#fcd34d', overlay: 'from-amber-950/75 to-orange-900/50' },
+  { key: 'spa',           label: 'Spa & Wellness',   icon: '🧖', desc: 'World-class treatments',      img: '/kuriftulogowithtext.webp' },
+  { key: 'gym',           label: 'Fitness Center',   icon: '🏋️', desc: '24/7 fully equipped',         img: '/kuriftulogo.jpg' },
+  { key: 'waterpark',     label: 'Water Park',       icon: '🌊', desc: 'Slides & relaxing pools',     img: '/kuriftulogowithtext.webp' },
+  { key: 'entertainment', label: 'Entertainment',    icon: '🎭', desc: 'Live shows & cultural events', img: '/kuriftulogo.jpg' },
+  { key: 'dining',        label: 'Fine Dining',      icon: '🍽️', desc: 'Curated culinary experience', img: '/kuriftulogowithtext.webp' },
+  { key: 'pool',          label: 'Infinity Pool',    icon: '🏊', desc: 'Panoramic resort views',      img: '/kuriftulogo.jpg' },
 ];
 
-function ServicesSlider() {
-  const [active, setActive] = useState(0);
+function ServicesCarousel() {
+  const [offset, setOffset] = useState(0);
   const timer = useRef(null);
+  const visible = 3; // cards visible at once on desktop
 
-  const go = (idx) => setActive(((idx % SERVICES.length) + SERVICES.length) % SERVICES.length);
+  const max = SERVICES.length - visible;
+
+  const next = () => setOffset((p) => Math.min(p + 1, max));
+  const prev = () => setOffset((p) => Math.max(p - 1, 0));
 
   useEffect(() => {
-    timer.current = setInterval(() => setActive((p) => (p + 1) % SERVICES.length), 4000);
+    timer.current = setInterval(() => {
+      setOffset((p) => (p >= max ? 0 : p + 1));
+    }, 3500);
     return () => clearInterval(timer.current);
-  }, []);
-
-  const svc = SERVICES[active];
+  }, [max]);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl shadow-xl" style={{ height: 340 }}>
-      {SERVICES.map((s, i) => (
-        <div key={s.key} className="absolute inset-0 transition-opacity duration-700" style={{ opacity: i === active ? 1 : 0 }}>
-          <img src={s.img} alt={s.label} className="h-full w-full object-cover" />
-          <div className={`absolute inset-0 bg-gradient-to-r ${s.overlay}`} />
-        </div>
-      ))}
-      <div className="relative z-10 flex h-full flex-col justify-end p-8">
-        <span className="text-4xl mb-3">{svc.emoji}</span>
-        <h3 className="text-2xl font-extrabold text-white mb-2" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>
-          {svc.label}
-        </h3>
-        <p className="text-white/75 text-sm max-w-sm leading-relaxed">{svc.desc}</p>
-        <div className="mt-5 flex gap-2">
-          {SERVICES.map((_, i) => (
-            <button key={i} type="button"
-              onClick={() => { clearInterval(timer.current); go(i); }}
-              className="h-2 rounded-full transition-all duration-300"
-              style={{ width: i === active ? 24 : 8, backgroundColor: i === active ? svc.accent : 'rgba(255,255,255,0.35)' }}
-            />
+    <div className="relative">
+      {/* Track */}
+      <div className="overflow-hidden">
+        <div
+          className="flex gap-4 transition-transform duration-500 ease-in-out"
+          style={{ transform: `translateX(calc(-${offset} * (100% / ${visible} + 16px / ${visible})))` }}
+        >
+          {SERVICES.map((svc) => (
+            <div
+              key={svc.key}
+              className="flex-shrink-0 relative overflow-hidden rounded-2xl shadow-md group cursor-pointer"
+              style={{ width: `calc(${100 / visible}% - ${(16 * (visible - 1)) / visible}px)`, height: 260 }}
+            >
+              <img src={svc.img} alt={svc.label} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0d2414]/90 via-[#0d2414]/30 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 p-5">
+                <p className="text-2xl mb-1">{svc.icon}</p>
+                <p className="text-white font-semibold text-sm tracking-wide" style={{ fontFamily: 'Georgia, serif' }}>{svc.label}</p>
+                <p className="text-white/55 text-xs mt-0.5">{svc.desc}</p>
+              </div>
+            </div>
           ))}
         </div>
       </div>
-      <button type="button" onClick={() => { clearInterval(timer.current); go(active - 1); }}
-        className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white text-xl backdrop-blur-sm transition hover:bg-black/50">
-        ‹
+
+      {/* Arrows */}
+      <button type="button" onClick={() => { clearInterval(timer.current); prev(); }}
+        disabled={offset === 0}
+        className="absolute -left-4 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg text-[#0d2414] transition hover:bg-[#9bc23c] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed z-10">
+        <RiArrowLeftSLine className="text-lg" />
       </button>
-      <button type="button" onClick={() => { clearInterval(timer.current); go(active + 1); }}
-        className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white text-xl backdrop-blur-sm transition hover:bg-black/50">
-        ›
+      <button type="button" onClick={() => { clearInterval(timer.current); next(); }}
+        disabled={offset >= max}
+        className="absolute -right-4 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg text-[#0d2414] transition hover:bg-[#9bc23c] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed z-10">
+        <RiArrowRightSLine className="text-lg" />
       </button>
+
+      {/* Dots */}
+      <div className="mt-5 flex justify-center gap-1.5">
+        {Array.from({ length: max + 1 }).map((_, i) => (
+          <button key={i} type="button"
+            onClick={() => { clearInterval(timer.current); setOffset(i); }}
+            className="h-1.5 rounded-full transition-all duration-300"
+            style={{ width: i === offset ? 20 : 6, backgroundColor: i === offset ? '#9bc23c' : '#d1d5db' }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -334,106 +336,159 @@ function ServicesSlider() {
 // ─── Room Details ─────────────────────────────────────────────────────────────
 
 const AMENITIES = [
-  { icon: '📶', label: 'Free Wi-Fi', desc: 'High-speed 300 Mbps' },
-  { icon: '❄️', label: 'Air Conditioning', desc: 'Climate controlled' },
-  { icon: '📺', label: 'Smart TV', desc: '55" 4K with streaming' },
-  { icon: '🛁', label: 'Luxury Bath', desc: 'Soaking tub & rain shower' },
-  { icon: '☕', label: 'Mini Bar', desc: 'Stocked daily' },
-  { icon: '🔒', label: 'In-room Safe', desc: 'Digital lock' },
-  { icon: '🛎️', label: 'Room Service', desc: '24/7 available' },
-  { icon: '🌿', label: 'Garden View', desc: 'Scenic resort grounds' },
+  { Icon: RiWifiLine,          label: 'Free Wi-Fi',       detail: '300 Mbps' },
+  { Icon: RiTempColdLine,      label: 'Climate Control',  detail: 'Smart AC' },
+  { Icon: RiTv2Line,           label: 'Smart TV',         detail: '55" 4K' },
+  { Icon: MdOutlineBathtub,    label: 'Luxury Bath',      detail: 'Rain shower' },
+  { Icon: MdOutlineCoffeeMaker,label: 'Mini Bar',         detail: 'Daily stocked' },
+  { Icon: RiShieldCheckLine,   label: 'In-room Safe',     detail: 'Digital lock' },
 ];
 
 function RoomDetails({ user }) {
+  const checkIn = user?.checkInDate ? new Date(user.checkInDate) : new Date(Date.now() - 2 * 86400000);
   return (
-    <div className="mx-auto max-w-7xl px-6 py-12">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-[#0d2414]">Your Room</h2>
-          <p className="mt-0.5 text-sm text-gray-500">Room {user?.roomNumber || '212'} · Deluxe Suite</p>
-        </div>
-        <span className="rounded-full bg-[#9bc23c]/15 px-3 py-1 text-xs font-bold text-[#2d5c10]">Active Stay</span>
+    <div className="mx-auto max-w-7xl px-6 py-14">
+      {/* Section label */}
+      <div className="flex items-center gap-3 mb-8">
+        <div className="h-px flex-1 bg-gray-200" />
+        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-gray-400">Your Stay</p>
+        <div className="h-px flex-1 bg-gray-200" />
       </div>
 
-      {/* Room banner */}
-      <div className="relative mb-8 overflow-hidden rounded-2xl shadow-lg" style={{ height: 200 }}>
-        <img src="/kuriftulogowithtext.webp" alt="Your room" className="h-full w-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0d2414]/80 to-transparent" />
-        <div className="absolute bottom-5 left-6">
-          <p className="text-white font-bold text-lg">Deluxe Suite · Room {user?.roomNumber || '212'}</p>
-          <p className="text-white/60 text-xs mt-0.5">King bed · Garden view · 45 m²</p>
-        </div>
-      </div>
-
-      {/* Amenities */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {AMENITIES.map((a) => (
-          <div key={a.label} className="flex items-start gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-            <span className="text-xl flex-shrink-0">{a.icon}</span>
-            <div>
-              <p className="text-xs font-bold text-[#0d2414]">{a.label}</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">{a.desc}</p>
-            </div>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 items-center">
+        {/* Left — room image */}
+        <div className="relative overflow-hidden rounded-2xl shadow-xl" style={{ height: 280 }}>
+          <img src="/room.jpg" alt="Your room" className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0d2414]/80 via-transparent to-transparent" />
+          <div className="absolute bottom-5 left-6 right-6">
+            <p className="text-white font-semibold text-base" style={{ fontFamily: 'Georgia, serif' }}>
+              Deluxe Suite · Room {user?.roomNumber || '212'}
+            </p>
+            <p className="text-white/50 text-xs mt-1 tracking-wide">King bed · Garden view · 45 m²</p>
           </div>
-        ))}
-      </div>
+          <span className="absolute top-4 right-4 rounded-full bg-[#9bc23c] px-3 py-1 text-[10px] font-bold text-[#0d2414] uppercase tracking-wider shadow">
+            Active
+          </span>
+        </div>
 
-      {/* Policies */}
-      <div className="mt-6 rounded-2xl border border-[#9bc23c]/20 bg-[#f0faf2] p-5">
-        <h3 className="text-sm font-bold text-[#0d2414] mb-3">Resort Policies</h3>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {[
-            { label: 'Check-in', value: '3:00 PM' },
-            { label: 'Check-out', value: '11:00 AM' },
-            { label: 'Pool Hours', value: '8 AM – 8 PM' },
-            { label: 'Gym', value: '24 hours' },
-            { label: 'Breakfast', value: '7 AM – 10 AM' },
-            { label: 'Bar', value: '4 PM – 11 PM' },
-          ].map((p) => (
-            <div key={p.label} className="flex justify-between rounded-lg bg-white px-3 py-2 text-xs">
-              <span className="text-gray-400">{p.label}</span>
-              <span className="font-semibold text-[#0d2414]">{p.value}</span>
-            </div>
-          ))}
+        {/* Right — details */}
+        <div>
+          {/* Check-in info */}
+          <div className="flex gap-4 mb-6">
+            {[
+              { label: 'Check-in', value: checkIn.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) },
+              { label: 'Check-out', value: '11:00 AM' },
+              { label: 'Guests', value: '2 Adults' },
+            ].map((s) => (
+              <div key={s.label} className="flex-1 border-l-2 border-[#9bc23c]/40 pl-3">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">{s.label}</p>
+                <p className="text-sm font-semibold text-[#0d2414]">{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Amenities */}
+          <div className="grid grid-cols-3 gap-3">
+            {AMENITIES.map(({ Icon, label, detail }) => (
+              <div key={label} className="flex flex-col items-center gap-1.5 rounded-xl border border-gray-100 bg-white p-3 text-center shadow-sm">
+                <Icon className="text-xl text-[#9bc23c]" />
+                <p className="text-[11px] font-semibold text-[#0d2414] leading-tight">{label}</p>
+                <p className="text-[10px] text-gray-400">{detail}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Policies row */}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {[
+              { label: 'Pool', value: '8AM–8PM' },
+              { label: 'Gym', value: '24hrs' },
+              { label: 'Breakfast', value: '7–10AM' },
+              { label: 'Bar', value: '4–11PM' },
+            ].map((p) => (
+              <div key={p.label} className="flex items-center gap-1.5 rounded-full bg-gray-50 border border-gray-100 px-3 py-1.5 text-xs">
+                <span className="text-gray-400">{p.label}</span>
+                <span className="font-semibold text-[#0d2414]">{p.value}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
+// ─── Footer ───────────────────────────────────────────────────────────────────
+
+function Footer() {
+  return (
+    <footer style={{ backgroundColor: '#0d2414' }} className="mt-auto">
+      <div className="mx-auto max-w-7xl px-6 py-10">
+        <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
+          {/* Brand */}
+          <div className="flex items-center gap-3">
+            <img src="/kuriftulogo.jpg" alt="Kuriftu" className="h-8 w-8 rounded-lg object-cover opacity-90" />
+            <div>
+              <p className="text-white text-sm font-semibold tracking-widest uppercase" style={{ fontFamily: 'Georgia, serif' }}>Kuriftu</p>
+              <p className="text-white/30 text-[10px] tracking-widest uppercase">Resort & Spa</p>
+            </div>
+          </div>
+
+          {/* Contact */}
+          <div className="flex items-center gap-5 text-xs text-white/40">
+            <span className="flex items-center gap-1.5"><RiPhoneLine className="text-[#9bc23c]" /> +251 11 123 4567</span>
+            <span className="flex items-center gap-1.5"><RiMapPinLine className="text-[#9bc23c]" /> Bishoftu, Ethiopia</span>
+          </div>
+
+          {/* Social */}
+          <div className="flex items-center gap-3">
+            {[RiInstagramLine, RiFacebookBoxLine, RiTwitterXLine].map((Icon, i) => (
+              <button key={i} type="button"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-white/40 transition hover:border-[#9bc23c]/50 hover:text-[#9bc23c]">
+                <Icon className="text-sm" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-8 border-t border-white/8 pt-6 text-center">
+          <p className="text-[10px] text-white/20 tracking-widest uppercase">
+            © {new Date().getFullYear()} Kuriftu Resort & Spa · All rights reserved
+          </p>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
 // ─── Home Page ────────────────────────────────────────────────────────────────
 
-function HomePage({ user, onNav }) {
+function HomePage({ user }) {
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#f7f9f2' }}>
-      {/* 3D hero */}
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f7f9f2' }}>
+      {/* Hero — full bleed, no extra buttons */}
       <HeroCanvas user={user} />
 
-      {/* CTA */}
-      <div className="mx-auto max-w-7xl px-6 py-6 flex flex-wrap gap-3">
-        <button type="button" onClick={() => onNav('food')}
-          className="rounded-xl bg-[#9bc23c] px-5 py-2.5 text-sm font-bold text-[#0d2414] shadow-lg shadow-[#9bc23c]/30 transition hover:bg-[#b4d655] hover:-translate-y-0.5">
-          🍽️ Order Food
-        </button>
-        <button type="button" onClick={() => onNav('services')}
-          className="rounded-xl border border-[#9bc23c]/40 bg-white px-5 py-2.5 text-sm font-semibold text-[#0d2414] shadow-sm transition hover:bg-[#f0faf2]">
-          🛎️ Request Service
-        </button>
-      </div>
-
-      {/* Services slider */}
-      <div className="mx-auto max-w-7xl px-6 pb-10">
-        <div className="mb-5">
-          <h2 className="text-xl font-bold text-[#0d2414]">Resort Amenities</h2>
-          <p className="mt-1 text-sm text-gray-500">Explore everything Kuriftu has to offer</p>
+      {/* Services carousel */}
+      <div className="mx-auto w-full max-w-7xl px-10 py-14">
+        <div className="mb-8 flex items-end justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#9bc23c] mb-1">Explore</p>
+            <h2 className="text-2xl font-semibold text-[#0d2414]" style={{ fontFamily: 'Georgia, serif' }}>
+              Resort Amenities
+            </h2>
+          </div>
+          <p className="text-xs text-gray-400 hidden sm:block">Swipe to explore</p>
         </div>
-        <ServicesSlider />
+        <ServicesCarousel />
       </div>
 
       {/* Room details */}
       <div className="border-t border-gray-100">
         <RoomDetails user={user} />
       </div>
+
+      <Footer />
     </div>
   );
 }
@@ -441,54 +496,91 @@ function HomePage({ user, onNav }) {
 // ─── Food Order Page ──────────────────────────────────────────────────────────
 
 const FOOD_CATEGORIES = [
-  { key: 'all', label: 'All', emoji: '🍽️' },
-  { key: 'popular', label: 'Popular Dishes', emoji: '🔥' },
-  { key: 'local', label: 'Local Cuisine', emoji: '🌿' },
-  { key: 'drinks', label: 'Drinks', emoji: '🥤' },
-  { key: 'international', label: 'International', emoji: '🌍' },
+  { key: 'all',           label: 'All Items' },
+  { key: 'popular',       label: 'Popular' },
+  { key: 'local',         label: 'Local Cuisine' },
+  { key: 'drinks',        label: 'Drinks' },
+  { key: 'international', label: 'International' },
 ];
 
-// Static menu with categories for demo (backend menu items don't have categories)
 const STATIC_MENU = [
-  { name: 'Injera with Tibs', price: 180, category: 'local', emoji: '🥩', desc: 'Traditional Ethiopian flatbread with sautéed beef' },
-  { name: 'Doro Wat', price: 220, category: 'local', emoji: '🍗', desc: 'Spicy Ethiopian chicken stew with boiled eggs' },
-  { name: 'Shiro Fitfit', price: 150, category: 'local', emoji: '🫘', desc: 'Chickpea stew with torn injera pieces' },
-  { name: 'Grilled Salmon', price: 380, category: 'international', emoji: '🐟', desc: 'Atlantic salmon with lemon butter sauce' },
-  { name: 'Club Sandwich', price: 250, category: 'popular', emoji: '🥪', desc: 'Triple-decker with chicken, bacon and veggies' },
-  { name: 'Margherita Pizza', price: 290, category: 'international', emoji: '🍕', desc: 'Classic tomato, mozzarella and fresh basil' },
-  { name: 'Caesar Salad', price: 200, category: 'popular', emoji: '🥗', desc: 'Romaine, croutons, parmesan and caesar dressing' },
-  { name: 'Pasta Carbonara', price: 270, category: 'international', emoji: '🍝', desc: 'Creamy egg sauce with pancetta and parmesan' },
-  { name: 'Fresh Orange Juice', price: 90, category: 'drinks', emoji: '🍊', desc: 'Freshly squeezed Ethiopian oranges' },
-  { name: 'Mango Smoothie', price: 110, category: 'drinks', emoji: '🥭', desc: 'Blended mango with yogurt and honey' },
-  { name: 'Ethiopian Coffee', price: 70, category: 'drinks', emoji: '☕', desc: 'Traditional ceremony coffee, rich and aromatic' },
-  { name: 'Avocado Juice', price: 100, category: 'popular', emoji: '🥑', desc: 'Creamy blended avocado with milk and sugar' },
+  { name: 'Injera with Tibs', price: 180, category: 'local', tag: "Chef's Pick",
+    desc: 'Traditional Ethiopian flatbread with sautéed spiced beef',
+    img: 'https://images.unsplash.com/photo-1567364816519-cbc9c4ffe1eb?w=400&q=80' },
+  { name: 'Doro Wat', price: 220, category: 'local', tag: 'Signature',
+    desc: 'Slow-cooked spicy chicken stew with boiled eggs',
+    img: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=400&q=80' },
+  { name: 'Shiro Fitfit', price: 150, category: 'local', tag: null,
+    desc: 'Chickpea stew folded with torn injera pieces',
+    img: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&q=80' },
+  { name: 'Grilled Salmon', price: 380, category: 'international', tag: 'Premium',
+    desc: 'Atlantic salmon fillet with lemon butter and herbs',
+    img: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=400&q=80' },
+  { name: 'Club Sandwich', price: 250, category: 'popular', tag: null,
+    desc: 'Triple-decker with grilled chicken, bacon and fresh greens',
+    img: 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=400&q=80' },
+  { name: 'Margherita Pizza', price: 290, category: 'international', tag: null,
+    desc: 'Wood-fired with San Marzano tomato, mozzarella and basil',
+    img: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=400&q=80' },
+  { name: 'Caesar Salad', price: 200, category: 'popular', tag: null,
+    desc: 'Crisp romaine, house croutons, parmesan and caesar dressing',
+    img: 'https://images.unsplash.com/photo-1546793665-c74683f339c1?w=400&q=80' },
+  { name: 'Pasta Carbonara', price: 270, category: 'international', tag: null,
+    desc: 'Silky egg sauce with pancetta, parmesan and black pepper',
+    img: 'https://images.unsplash.com/photo-1612874742237-6526221588e3?w=400&q=80' },
+  { name: 'Fresh Orange Juice', price: 90, category: 'drinks', tag: null,
+    desc: 'Cold-pressed from freshly harvested Ethiopian oranges',
+    img: 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400&q=80' },
+  { name: 'Mango Smoothie', price: 110, category: 'drinks', tag: 'Popular',
+    desc: 'Blended ripe mango with yogurt and a touch of honey',
+    img: 'https://images.unsplash.com/photo-1623065422902-30a2d299bbe4?w=400&q=80' },
+  { name: 'Ethiopian Coffee', price: 70, category: 'drinks', tag: 'Signature',
+    desc: 'Traditional ceremony coffee, rich, aromatic and bold',
+    img: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&q=80' },
+  { name: 'Avocado Juice', price: 100, category: 'popular', tag: null,
+    desc: 'Creamy blended avocado with chilled milk and cane sugar',
+    img: 'https://images.unsplash.com/photo-1638176066959-e349a5e5e5e5?w=400&q=80' },
 ];
 
 function FoodCard({ item, qty, onAdd, onInc, onDec }) {
   return (
-    <div className="group rounded-2xl border border-gray-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md overflow-hidden">
-      {/* Emoji banner */}
-      <div className="flex h-28 items-center justify-center bg-gradient-to-br from-[#f0faf2] to-[#e8f5d0] text-5xl">
-        {item.emoji}
+    <div className="group relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+      <div className="relative overflow-hidden" style={{ height: 180 }}>
+        <img src={item.img} alt={item.name}
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        {item.tag && (
+          <span className="absolute top-3 left-3 rounded-full bg-[#0d2414]/80 px-2.5 py-1 text-[10px] font-semibold text-[#9bc23c] uppercase tracking-wider backdrop-blur-sm">
+            {item.tag}
+          </span>
+        )}
+        {qty > 0 && (
+          <div className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-full bg-[#9bc23c] text-[11px] font-bold text-[#0d2414] shadow-md">
+            {qty}
+          </div>
+        )}
       </div>
-      <div className="p-4">
-        <h3 className="font-bold text-[#0d2414] text-sm leading-tight">{item.name}</h3>
-        <p className="mt-1 text-xs text-gray-400 leading-relaxed line-clamp-2">{item.desc}</p>
-        <div className="mt-3 flex items-center justify-between">
-          <span className="text-base font-extrabold text-[#1d5c28]">ETB {item.price}</span>
+      <div className="flex flex-1 flex-col p-4">
+        <h3 className="font-semibold text-[#0d2414] text-sm leading-snug mb-1" style={{ fontFamily: 'Georgia, serif' }}>
+          {item.name}
+        </h3>
+        <p className="text-xs text-gray-400 leading-relaxed line-clamp-2 flex-1">{item.desc}</p>
+        <div className="mt-4 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] text-gray-400 uppercase tracking-wider">Price</p>
+            <p className="text-base font-bold text-[#0d2414]">ETB {item.price}</p>
+          </div>
           {qty === 0 ? (
-            <button
-              type="button"
-              onClick={onAdd}
-              className="rounded-xl bg-[#9bc23c] px-4 py-1.5 text-xs font-bold text-[#0d2414] shadow transition hover:bg-[#b4d655]"
-            >
+            <button type="button" onClick={onAdd}
+              className="rounded-xl bg-[#0d2414] px-4 py-2 text-xs font-semibold text-white tracking-wide transition hover:bg-[#1a4a22] hover:shadow-md">
               Add
             </button>
           ) : (
             <div className="flex items-center gap-2">
-              <button type="button" onClick={onDec} className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-700 font-bold text-sm transition hover:bg-gray-200">−</button>
+              <button type="button" onClick={onDec}
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 text-gray-600 text-sm font-bold transition hover:border-[#0d2414] hover:text-[#0d2414]">−</button>
               <span className="w-5 text-center text-sm font-bold text-[#0d2414]">{qty}</span>
-              <button type="button" onClick={onInc} className="flex h-7 w-7 items-center justify-center rounded-full bg-[#9bc23c] text-[#0d2414] font-bold text-sm transition hover:bg-[#b4d655]">+</button>
+              <button type="button" onClick={onInc}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-[#9bc23c] text-[#0d2414] text-sm font-bold transition hover:bg-[#b4d655]">+</button>
             </div>
           )}
         </div>
@@ -535,7 +627,6 @@ function FoodPage({ user, cart, setCart, onOrderPlaced }) {
       setCart({});
       setShowCart(false);
     } catch {
-      // still record locally
       const items = STATIC_MENU.filter((i) => cart[i.name]);
       onOrderPlaced(items.map((i) => ({ ...i, qty: cart[i.name] })));
       setCart({});
@@ -547,104 +638,102 @@ function FoodPage({ user, cart, setCart, onOrderPlaced }) {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#f7f9f2' }}>
-      {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-6 py-5">
-        <div className="mx-auto max-w-7xl flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-[#0d2414]">Food & Dining</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Room service available 24/7</p>
+      {/* Hero header */}
+      <div style={{ background: 'linear-gradient(135deg, #0d2414 0%, #1a3a1e 100%)' }} className="px-6 pt-10 pb-8">
+        <div className="mx-auto max-w-7xl">
+          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#9bc23c] mb-2">Kuriftu Resort</p>
+          <h1 className="text-3xl font-light text-white mb-1" style={{ fontFamily: 'Georgia, serif' }}>
+            Food & Dining
+          </h1>
+          <p className="text-white/40 text-sm tracking-wide">Room service available 24 hours</p>
+        </div>
+      </div>
+
+      {/* Sticky filter + cart bar */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm">
+        <div className="mx-auto max-w-7xl flex items-center justify-between px-6 py-3 gap-4">
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+            {FOOD_CATEGORIES.map((cat) => (
+              <button key={cat.key} type="button" onClick={() => setActiveFilter(cat.key)}
+                className={`flex-shrink-0 rounded-full px-4 py-1.5 text-xs font-medium tracking-wide transition-all ${
+                  activeFilter === cat.key
+                    ? 'bg-[#0d2414] text-white shadow-sm'
+                    : 'text-gray-500 hover:text-[#0d2414] hover:bg-gray-100'
+                }`}>
+                {cat.label}
+              </button>
+            ))}
           </div>
           {totalItems > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowCart(true)}
-              className="relative flex items-center gap-2 rounded-xl bg-[#0d2414] px-4 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-[#1a4a22]"
-            >
-              🛒 Cart
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#9bc23c] text-[10px] font-bold text-[#0d2414]">
-                {totalItems}
-              </span>
+            <button type="button" onClick={() => setShowCart(true)}
+              className="flex-shrink-0 flex items-center gap-2 rounded-xl bg-[#9bc23c] px-4 py-2 text-xs font-semibold text-[#0d2414] shadow transition hover:bg-[#b4d655]">
+              <RiRestaurantLine className="text-sm" />
+              {totalItems} item{totalItems !== 1 ? 's' : ''} · ETB {totalPrice.toLocaleString()}
             </button>
           )}
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white border-b border-gray-100 px-6 py-3">
-        <div className="mx-auto max-w-7xl flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          {FOOD_CATEGORIES.map((cat) => (
-            <button
-              key={cat.key}
-              type="button"
-              onClick={() => setActiveFilter(cat.key)}
-              className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold transition-all ${
-                activeFilter === cat.key
-                  ? 'bg-[#9bc23c] text-[#0d2414] shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <span>{cat.emoji}</span>
-              {cat.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Grid */}
       <div className="mx-auto max-w-7xl px-6 py-8">
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <p className="text-xs text-gray-400 mb-6 tracking-wide uppercase">
+          {filtered.length} item{filtered.length !== 1 ? 's' : ''}
+          {activeFilter !== 'all' ? ` · ${FOOD_CATEGORIES.find(c => c.key === activeFilter)?.label}` : ''}
+        </p>
+        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
           {filtered.map((item) => (
-            <FoodCard
-              key={item.name}
-              item={item}
+            <FoodCard key={item.name} item={item}
               qty={cart[item.name] || 0}
               onAdd={() => setQty(item.name, 1)}
               onInc={() => setQty(item.name, 1)}
-              onDec={() => setQty(item.name, -1)}
-            />
+              onDec={() => setQty(item.name, -1)} />
           ))}
         </div>
       </div>
 
-      {/* Cart modal */}
+      {/* Cart drawer */}
       {showCart && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm px-4">
           <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-              <h3 className="font-bold text-[#0d2414]">Your Order</h3>
-              <button type="button" onClick={() => setShowCart(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+              <div>
+                <h3 className="font-semibold text-[#0d2414]" style={{ fontFamily: 'Georgia, serif' }}>Your Order</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Room {user?.roomNumber || '—'}</p>
+              </div>
+              <button type="button" onClick={() => setShowCart(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition hover:bg-gray-200">
+                <RiCloseLine className="text-base" />
+              </button>
             </div>
-            <div className="max-h-72 overflow-y-auto px-5 py-3 space-y-3">
+            <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
               {STATIC_MENU.filter((i) => cart[i.name]).map((item) => (
-                <div key={item.name} className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">{item.emoji}</span>
-                    <div>
-                      <p className="text-sm font-semibold text-[#0d2414]">{item.name}</p>
-                      <p className="text-xs text-gray-400">ETB {item.price} each</p>
-                    </div>
+                <div key={item.name} className="flex items-center gap-3 px-6 py-3.5">
+                  <img src={item.img} alt={item.name} className="h-12 w-12 rounded-xl object-cover flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[#0d2414] truncate">{item.name}</p>
+                    <p className="text-xs text-gray-400">ETB {item.price} each</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => setQty(item.name, -1)} className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-sm font-bold">−</button>
-                    <span className="w-4 text-center text-sm font-bold">{cart[item.name]}</span>
-                    <button type="button" onClick={() => setQty(item.name, 1)} className="flex h-6 w-6 items-center justify-center rounded-full bg-[#9bc23c] text-sm font-bold text-[#0d2414]">+</button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button type="button" onClick={() => setQty(item.name, -1)}
+                      className="flex h-6 w-6 items-center justify-center rounded-full border border-gray-200 text-xs font-bold text-gray-600 transition hover:border-gray-400">−</button>
+                    <span className="w-4 text-center text-sm font-semibold text-[#0d2414]">{cart[item.name]}</span>
+                    <button type="button" onClick={() => setQty(item.name, 1)}
+                      className="flex h-6 w-6 items-center justify-center rounded-full bg-[#9bc23c] text-xs font-bold text-[#0d2414] transition hover:bg-[#b4d655]">+</button>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="border-t border-gray-100 px-5 py-4">
+            <div className="px-6 py-5 bg-gray-50 border-t border-gray-100">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-sm text-gray-500">Total</span>
-                <span className="text-lg font-extrabold text-[#0d2414]">ETB {totalPrice.toLocaleString()}</span>
+                <p className="text-xs text-gray-400 uppercase tracking-wider">Total</p>
+                <p className="text-xl font-bold text-[#0d2414]">ETB {totalPrice.toLocaleString()}</p>
               </div>
-              <button
-                type="button"
-                onClick={placeOrder}
-                disabled={ordering}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#9bc23c] py-3 text-sm font-bold text-[#0d2414] shadow transition hover:bg-[#b4d655] disabled:opacity-50"
-              >
-                {ordering && <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#0d2414]/20 border-t-[#0d2414]" />}
-                {ordering ? 'Placing order...' : 'Place Order'}
+              <button type="button" onClick={placeOrder} disabled={ordering}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0d2414] py-3.5 text-sm font-semibold text-white tracking-wide transition hover:bg-[#1a4a22] disabled:opacity-50">
+                {ordering
+                  ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" /> Placing order...</>
+                  : 'Confirm Order'
+                }
               </button>
             </div>
           </div>
@@ -657,22 +746,22 @@ function FoodPage({ user, cart, setCart, onOrderPlaced }) {
 // ─── Guest Services Page ──────────────────────────────────────────────────────
 
 const QUICK_REQUESTS = [
-  { label: 'Extra Pillow', emoji: '🛏️', msg: 'I need an extra pillow please' },
-  { label: 'Soft Towels', emoji: '🧺', msg: 'Please bring soft towels to my room' },
-  { label: 'Shampoo', emoji: '🧴', msg: 'I need shampoo in my room' },
-  { label: 'Conditioner', emoji: '💆', msg: 'Please bring hair conditioner' },
-  { label: 'Toilet Paper', emoji: '🧻', msg: 'I need toilet paper please' },
-  { label: 'Room Cleaning', emoji: '🧹', msg: 'Please clean my room' },
-  { label: 'Toothbrush Kit', emoji: '🪥', msg: 'I need a toothbrush kit' },
-  { label: 'Extra Blanket', emoji: '🛋️', msg: 'Please bring an extra blanket' },
+  { label: 'Extra Pillow',   Icon: RiHotelBedLine,            msg: 'I need an extra pillow please',          category: 'Bedding' },
+  { label: 'Towels',         Icon: MdOutlineLocalLaundryService, msg: 'Please bring fresh towels to my room', category: 'Bedding' },
+  { label: 'Toiletries',     Icon: RiDropLine,                msg: 'I need shampoo and conditioner',          category: 'Bath' },
+  { label: 'Room Cleaning',  Icon: LuSparkles,                msg: 'Please clean my room',                   category: 'Housekeeping' },
+  { label: 'Extra Blanket',  Icon: RiMoonLine,                msg: 'Please bring an extra blanket',          category: 'Bedding' },
+  { label: 'Toothbrush Kit', Icon: RiLeafLine,                msg: 'I need a toothbrush kit please',         category: 'Bath' },
+  { label: 'Maintenance',    Icon: RiToolsLine,               msg: 'I have a maintenance issue in my room',  category: 'Repair' },
+  { label: 'Laundry',        Icon: RiScissorsCutLine,         msg: 'I need laundry service please',          category: 'Service' },
 ];
 
 function GuestServicesPage({ user, onRequestSent }) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [lastSent, setLastSent] = useState(null);
 
-  const sendRequest = async (message) => {
+  const sendRequest = async (message, label) => {
     const text = (message || input).trim();
     if (!text || sending) return;
     setSending(true);
@@ -684,81 +773,147 @@ function GuestServicesPage({ user, onRequestSent }) {
         role: 'customer',
         user_id: `guest_${user?.roomNumber || '000'}`,
       });
-    } catch {
-      // still record locally
-    } finally {
+    } catch { /* record locally regardless */ }
+    finally {
       onRequestSent({ type: 'service', message: text, time: new Date().toISOString() });
       setSending(false);
-      setSent(true);
+      setLastSent(label || 'custom');
       setInput('');
-      setTimeout(() => setSent(false), 2500);
+      setTimeout(() => setLastSent(null), 2500);
     }
   };
 
   const handleKey = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendRequest(); }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendRequest(input, 'custom'); }
   };
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#f7f9f2' }}>
-      <div className="mx-auto max-w-3xl px-6 py-10">
-        {/* Greeting */}
-        <div className="mb-8 text-center">
-          <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-[#0d2414] text-3xl shadow-lg mb-4">
-            🌿
-          </div>
-          <h1 className="text-2xl font-bold text-[#0d2414]">
-            {getGreeting()}, {user?.name}
-          </h1>
-          <p className="mt-2 text-gray-500">What can we help you with today?</p>
-        </div>
 
-        {/* Input area */}
-        <div className="rounded-2xl border border-[#9bc23c]/30 bg-white p-5 shadow-sm mb-6">
-          <div className="flex items-end gap-3">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKey}
-              rows={3}
-              placeholder="Type your request here… (e.g. I need extra towels, please clean my room)"
-              className="flex-1 resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-[#9bc23c] focus:ring-2 focus:ring-[#9bc23c]/20 placeholder:text-gray-400"
-            />
-            <button
-              type="button"
-              onClick={() => sendRequest()}
-              disabled={!input.trim() || sending}
-              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-[#0d2414] text-white shadow transition hover:bg-[#1a4a22] disabled:opacity-40"
-            >
-              {sending
-                ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
-                : <svg className="h-5 w-5 rotate-90" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-              }
-            </button>
+      {/* Hero with room photo */}
+      <div className="relative overflow-hidden" style={{ height: 220 }}>
+        <img src="/room.jpg" alt="Room" className="absolute inset-0 h-full w-full object-cover object-center" />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(8,20,10,0.5) 0%, rgba(8,20,10,0.78) 100%)' }} />
+        <div className="relative h-full flex flex-col justify-end px-8 pb-8 sm:px-14">
+          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#9bc23c] mb-2">Concierge</p>
+          <h1 className="text-3xl font-light text-white" style={{ fontFamily: 'Georgia, serif' }}>
+            {getGreeting()}, <span className="font-semibold">{user?.name}</span>
+          </h1>
+          <p className="text-white/45 text-sm mt-1 tracking-wide">How can we make your stay exceptional today?</p>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-5xl px-6 py-10">
+
+        {/* Compose — centered */}
+        <div className="mx-auto max-w-2xl mb-12">
+          <div className="rounded-2xl bg-white shadow-md border border-gray-100 overflow-hidden">
+            <div className="px-6 pt-5 pb-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-3">Your Request</p>
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKey}
+                rows={3}
+                placeholder="Describe what you need and we'll take care of it right away…"
+                className="w-full resize-none text-sm text-gray-800 outline-none placeholder:text-gray-300 bg-transparent leading-relaxed"
+                style={{ fontFamily: 'Georgia, serif' }}
+              />
+            </div>
+            <div className="flex items-center justify-between border-t border-gray-50 px-6 py-3 bg-gray-50/40">
+              <p className="text-[11px] text-gray-400">
+                {input.length > 0 ? `${input.length} chars` : 'Enter to send · Shift+Enter for new line'}
+              </p>
+              <button
+                type="button"
+                onClick={() => sendRequest(input, 'custom')}
+                disabled={!input.trim() || sending}
+                className="flex items-center gap-2 rounded-xl bg-[#0d2414] px-5 py-2 text-xs font-semibold text-white tracking-wide transition hover:bg-[#1a4a22] active:scale-95 disabled:opacity-30"
+              >
+                {sending
+                  ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                  : <RiSendPlaneLine className="text-sm" />
+                }
+                {sending ? 'Sending…' : 'Send'}
+              </button>
+            </div>
           </div>
-          {sent && (
-            <p className="mt-2 text-xs text-[#2d7a3a] font-medium flex items-center gap-1">
-              <span>✓</span> Request sent successfully
-            </p>
+          {lastSent === 'custom' && (
+            <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-[#9bc23c]/25 bg-[#f0faf2] px-4 py-3">
+              <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#9bc23c]/20">
+                <RiCheckLine className="text-[#9bc23c] text-xs" />
+              </div>
+              <p className="text-xs text-[#2d5c10]">Request received — our team will attend to you shortly.</p>
+            </div>
           )}
         </div>
 
-        {/* Quick requests */}
-        <div>
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Quick Requests</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {QUICK_REQUESTS.map((req) => (
-              <button
-                key={req.label}
-                type="button"
-                onClick={() => sendRequest(req.msg)}
-                disabled={sending}
-                className="flex flex-col items-center gap-2 rounded-2xl border border-gray-100 bg-white p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-[#9bc23c]/40 hover:shadow-md disabled:opacity-50"
-              >
-                <span className="text-2xl">{req.emoji}</span>
-                <span className="text-xs font-semibold text-[#0d2414] leading-tight">{req.label}</span>
-              </button>
-            ))}
+        {/* Quick requests + info */}
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-4">Quick Requests</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {QUICK_REQUESTS.map(({ label, Icon, msg, category }) => {
+                const justSent = lastSent === label;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => sendRequest(msg, label)}
+                    disabled={sending}
+                    className={`group flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition-all duration-200 ${
+                      justSent
+                        ? 'border-[#9bc23c]/30 bg-[#f0faf2]'
+                        : 'border-gray-100 bg-white hover:-translate-y-0.5 hover:border-gray-200 hover:shadow-md'
+                    } disabled:opacity-40`}
+                  >
+                    <div className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
+                      justSent ? 'bg-[#9bc23c]/15' : 'bg-gray-50 group-hover:bg-gray-100'
+                    }`}>
+                      {justSent
+                        ? <RiCheckLine className="text-[#9bc23c] text-sm" />
+                        : <Icon className="text-gray-400 text-sm group-hover:text-[#0d2414]" />
+                      }
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-[#0d2414] leading-tight">{label}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5 tracking-wide">{category}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">Resort Hours</p>
+            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm divide-y divide-gray-50">
+              {[
+                { label: 'Room Service', value: '24 hrs',   live: true },
+                { label: 'Housekeeping', value: '7AM–10PM', live: false },
+                { label: 'Concierge',    value: '24 hrs',   live: true },
+                { label: 'Pool',         value: '8AM–8PM',  live: false },
+                { label: 'Gym',          value: '24 hrs',   live: true },
+                { label: 'Breakfast',    value: '7–10AM',   live: false },
+                { label: 'Bar',          value: '4–11PM',   live: false },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center justify-between px-4 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-1.5 w-1.5 rounded-full ${item.live ? 'bg-[#9bc23c]' : 'bg-gray-300'}`} />
+                    <p className="text-xs text-gray-500">{item.label}</p>
+                  </div>
+                  <p className="text-xs font-semibold text-[#0d2414]">{item.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-2xl bg-[#0d2414] px-5 py-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#9bc23c] mb-2">Front Desk</p>
+              <p className="text-white/50 text-xs leading-relaxed mb-3">For urgent requests or emergencies.</p>
+              <div className="flex items-center gap-2">
+                <RiPhoneLine className="text-[#9bc23c] text-sm flex-shrink-0" />
+                <p className="text-xs text-white/60">Dial <span className="font-bold text-white">0</span> from your room</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -769,67 +924,90 @@ function GuestServicesPage({ user, onRequestSent }) {
 // ─── Requests Page ────────────────────────────────────────────────────────────
 
 function RequestsPage({ requests, onDelete }) {
-  const [loading, setLoading] = useState(false);
+  const foodReqs = requests.filter((r) => r.type === 'food');
+  const serviceReqs = requests.filter((r) => r.type !== 'food');
 
-  const typeLabel = (r) => {
-    if (r.type === 'food') return { label: 'Food Order', color: 'bg-amber-50 border-amber-200 text-amber-700', emoji: '🍽️' };
-    return { label: 'Guest Service', color: 'bg-[#9bc23c]/10 border-[#9bc23c]/30 text-[#2d5c10]', emoji: '🛎️' };
+  const RequestCard = ({ req, i }) => {
+    const isFood = req.type === 'food';
+    return (
+      <div className="group flex items-start gap-4 rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-sm transition-all hover:shadow-md">
+        <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ${isFood ? 'bg-amber-50' : 'bg-[#0d2414]/5'}`}>
+          {isFood
+            ? <RiRestaurantLine className="text-amber-500 text-sm" />
+            : <RiCustomerService2Line className="text-[#0d2414]/50 text-sm" />
+          }
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider border ${
+              isFood ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-[#9bc23c]/8 text-[#2d5c10] border-[#9bc23c]/15'
+            }`}>
+              {isFood ? 'Food' : 'Service'}
+            </span>
+            {req.time && (
+              <span className="text-[10px] text-gray-400">
+                {new Date(req.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-gray-700 leading-relaxed">{req.message}</p>
+          {req.items && (
+            <p className="mt-1 text-xs text-gray-400">{req.items.map((it) => `${it.qty}× ${it.name}`).join(' · ')}</p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => onDelete(req.id || i)}
+          className="flex-shrink-0 flex h-7 w-7 items-center justify-center rounded-lg text-gray-200 transition hover:bg-red-50 hover:text-red-400 opacity-0 group-hover:opacity-100"
+        >
+          <RiDeleteBinLine className="text-xs" />
+        </button>
+      </div>
+    );
   };
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#f7f9f2' }}>
-      <div className="mx-auto max-w-3xl px-6 py-10">
-        <div className="mb-6 flex items-center justify-between">
+      <div style={{ background: 'linear-gradient(135deg, #0d2414 0%, #1a3a1e 100%)' }} className="px-6 pt-10 pb-8">
+        <div className="mx-auto max-w-5xl flex items-end justify-between">
           <div>
-            <h1 className="text-xl font-bold text-[#0d2414]">My Requests</h1>
-            <p className="text-xs text-gray-400 mt-0.5">{requests.length} request{requests.length !== 1 ? 's' : ''} submitted</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#9bc23c] mb-2">Activity</p>
+            <h1 className="text-3xl font-light text-white" style={{ fontFamily: 'Georgia, serif' }}>My Requests</h1>
           </div>
+          {requests.length > 0 && (
+            <p className="text-white/30 text-xs pb-1 tracking-widest uppercase">{requests.length} total</p>
+          )}
         </div>
-
+      </div>
+      <div className="mx-auto max-w-5xl px-6 py-8">
         {requests.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#9bc23c]/40 bg-white py-20 text-center">
-            <div className="text-4xl mb-4">📋</div>
-            <p className="font-semibold text-gray-600">No requests yet</p>
-            <p className="mt-1 text-sm text-gray-400">Your food orders and service requests will appear here.</p>
+          <div className="flex flex-col items-center justify-center py-28 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white border border-gray-100 shadow-sm mb-5">
+              <RiFileListLine className="text-xl text-gray-300" />
+            </div>
+            <p className="text-sm font-medium text-gray-500" style={{ fontFamily: 'Georgia, serif' }}>No requests yet</p>
+            <p className="mt-1 text-xs text-gray-400">Food orders and service requests will appear here.</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {requests.map((req, i) => {
-              const t = typeLabel(req);
-              return (
-                <div key={req.id || i} className="flex items-start gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gray-50 text-xl">
-                    {t.emoji}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${t.color}`}>
-                        {t.label}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {req.time ? new Date(req.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-700 leading-relaxed">{req.message}</p>
-                    {req.items && (
-                      <p className="mt-1 text-xs text-gray-400">
-                        {req.items.map((it) => `${it.qty}x ${it.name}`).join(', ')}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(req.id || i)}
-                    className="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded-lg text-gray-300 transition hover:bg-red-50 hover:text-red-400"
-                    aria-label="Delete request"
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-4">
+                Food Orders <span className="text-gray-300 font-normal">· {foodReqs.length}</span>
+              </p>
+              {foodReqs.length === 0
+                ? <div className="rounded-2xl border border-dashed border-gray-200 bg-white py-10 text-center"><p className="text-xs text-gray-400">No food orders placed</p></div>
+                : <div className="space-y-2.5">{foodReqs.map((req, i) => <RequestCard key={req.id || i} req={req} i={i} />)}</div>
+              }
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-4">
+                Service Requests <span className="text-gray-300 font-normal">· {serviceReqs.length}</span>
+              </p>
+              {serviceReqs.length === 0
+                ? <div className="rounded-2xl border border-dashed border-gray-200 bg-white py-10 text-center"><p className="text-xs text-gray-400">No service requests submitted</p></div>
+                : <div className="space-y-2.5">{serviceReqs.map((req, i) => <RequestCard key={req.id || i} req={req} i={i} />)}</div>
+              }
+            </div>
           </div>
         )}
       </div>
@@ -840,107 +1018,136 @@ function RequestsPage({ requests, onDelete }) {
 // ─── Payments Page ────────────────────────────────────────────────────────────
 
 function PaymentsPage({ user, foodOrders }) {
-  const checkInDate = user?.checkInDate ? new Date(user.checkInDate) : new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+  const checkInDate = user?.checkInDate
+    ? new Date(user.checkInDate)
+    : new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
   const today = new Date();
   const daysStayed = Math.max(1, Math.ceil((today - checkInDate) / (1000 * 60 * 60 * 24)));
-
-  const ROOM_RATE = 3500; // ETB per night
+  const ROOM_RATE = 3500;
   const roomTotal = daysStayed * ROOM_RATE;
-
-  const foodTotal = foodOrders.reduce((sum, order) => {
-    if (order.items) return sum + order.items.reduce((s, i) => s + i.price * i.qty, 0);
-    return sum;
-  }, 0);
-
+  const foodTotal = foodOrders.reduce((sum, order) =>
+    order.items ? sum + order.items.reduce((s, i) => s + i.price * i.qty, 0) : sum, 0);
   const grandTotal = roomTotal + foodTotal;
 
-  const lineItems = [
-    { label: `Room (${daysStayed} night${daysStayed !== 1 ? 's' : ''} × ETB ${ROOM_RATE.toLocaleString()})`, amount: roomTotal, icon: '🏨' },
-    ...foodOrders.flatMap((order) =>
-      order.items
-        ? order.items.map((item) => ({
-            label: `${item.name} × ${item.qty}`,
-            amount: item.price * item.qty,
-            icon: '🍽️',
-          }))
-        : []
-    ),
-  ];
+  const foodLines = foodOrders.flatMap((order) =>
+    order.items
+      ? order.items.map((item) => ({
+          label: item.name,
+          sub: `${item.qty} × ETB ${item.price.toLocaleString()}`,
+          amount: item.price * item.qty,
+          Icon: RiRestaurantLine,
+        }))
+      : []
+  );
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#f7f9f2' }}>
-      <div className="mx-auto max-w-2xl px-6 py-10">
-        {/* Header card */}
-        <div className="rounded-2xl overflow-hidden shadow-lg mb-6" style={{ background: 'linear-gradient(135deg, #0d2414 0%, #1a4a22 100%)' }}>
-          <div className="px-6 py-8">
-            <div className="flex items-center gap-4 mb-6">
-              <img src="/kuriftulogo.jpg" alt="Kuriftu" className="h-12 w-12 rounded-xl object-cover" />
-              <div>
-                <p className="text-white font-bold text-lg">Kuriftu Resort</p>
-                <p className="text-white/50 text-xs">Guest Invoice</p>
+
+      {/* Hero with room photo + total overlay */}
+      <div className="relative overflow-hidden" style={{ height: 240 }}>
+        <img src="/room.jpg" alt="Room" className="absolute inset-0 h-full w-full object-cover object-center" />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(8,20,10,0.45) 0%, rgba(8,20,10,0.82) 100%)' }} />
+        <div className="relative h-full flex flex-col justify-end px-8 pb-8 sm:px-14">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#9bc23c] mb-2">Invoice</p>
+              <h1 className="text-3xl font-light text-white" style={{ fontFamily: 'Georgia, serif' }}>Your Bill</h1>
+              <p className="text-white/40 text-sm mt-1">Room {user?.roomNumber || '212'} · {user?.name}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] uppercase tracking-widest text-white/30 mb-1">Total Due</p>
+              <p className="text-3xl font-bold text-[#9bc23c]" style={{ fontFamily: 'Georgia, serif' }}>
+                ETB {grandTotal.toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+
+          {/* Left — charges */}
+          <div className="lg:col-span-2 space-y-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-4">Itemized Charges</p>
+
+            {/* Room line */}
+            <div className="flex items-center gap-4 rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-sm">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#0d2414]/5">
+                <RiHotelBedLine className="text-[#0d2414]/50 text-base" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#0d2414]" style={{ fontFamily: 'Georgia, serif' }}>Accommodation</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {daysStayed} night{daysStayed !== 1 ? 's' : ''} · Deluxe Suite · ETB {ROOM_RATE.toLocaleString()} / night
+                </p>
+              </div>
+              <p className="text-sm font-semibold text-[#0d2414] flex-shrink-0">ETB {roomTotal.toLocaleString()}</p>
+            </div>
+
+            {/* Food lines */}
+            {foodLines.map((line, i) => (
+              <div key={i} className="flex items-center gap-4 rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-sm">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-amber-50">
+                  <line.Icon className="text-amber-500 text-base" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-[#0d2414]" style={{ fontFamily: 'Georgia, serif' }}>{line.label}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{line.sub}</p>
+                </div>
+                <p className="text-sm font-semibold text-[#0d2414] flex-shrink-0">ETB {line.amount.toLocaleString()}</p>
+              </div>
+            ))}
+
+            {/* Totals block */}
+            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden mt-2">
+              {foodTotal > 0 && (
+                <>
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50">
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">Room charges</p>
+                    <p className="text-sm font-medium text-[#0d2414]">ETB {roomTotal.toLocaleString()}</p>
+                  </div>
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50">
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">Food & dining</p>
+                    <p className="text-sm font-medium text-[#0d2414]">ETB {foodTotal.toLocaleString()}</p>
+                  </div>
+                </>
+              )}
+              <div className="flex items-center justify-between px-5 py-4 bg-[#0d2414]">
+                <p className="text-xs font-bold uppercase tracking-widest text-white/50">Total Due</p>
+                <p className="text-xl font-bold text-[#9bc23c]">ETB {grandTotal.toLocaleString()}</p>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+          </div>
+
+          {/* Right — stay card */}
+          <div className="space-y-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-4">Stay Details</p>
+
+            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm divide-y divide-gray-50">
               {[
-                { label: 'Guest', value: user?.name || '—' },
-                { label: 'Room', value: user?.roomNumber || '—' },
-                { label: 'Nights', value: daysStayed },
+                { label: 'Guest',     value: user?.name || '—' },
+                { label: 'Room',      value: `${user?.roomNumber || '212'} · Deluxe Suite` },
+                { label: 'Check-in',  value: checkInDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) },
+                { label: 'Check-out', value: today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) },
+                { label: 'Duration',  value: `${daysStayed} night${daysStayed !== 1 ? 's' : ''}` },
+                { label: 'Rate',      value: `ETB ${ROOM_RATE.toLocaleString()} / night` },
               ].map((s) => (
-                <div key={s.label}>
-                  <p className="text-white/40 text-xs mb-1">{s.label}</p>
-                  <p className="text-white font-bold">{s.value}</p>
+                <div key={s.label} className="flex items-center justify-between px-4 py-3">
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wider">{s.label}</p>
+                  <p className="text-xs font-semibold text-[#0d2414] text-right max-w-[55%]">{s.value}</p>
                 </div>
               ))}
             </div>
-          </div>
-          {/* Total banner */}
-          <div className="bg-[#9bc23c] px-6 py-4 flex items-center justify-between">
-            <p className="font-bold text-[#0d2414]">Total Amount Due</p>
-            <p className="text-2xl font-extrabold text-[#0d2414]">ETB {grandTotal.toLocaleString()}</p>
+
+            <div className="rounded-2xl border border-[#9bc23c]/20 bg-[#f0faf2] px-5 py-4">
+              <p className="text-xs font-semibold text-[#0d2414] mb-1.5">Ready to check out?</p>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Visit the front desk or dial <span className="font-bold text-[#0d2414]">0</span> from your room. Check-out is at 11:00 AM.
+              </p>
+            </div>
           </div>
         </div>
-
-        {/* Line items */}
-        <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="font-bold text-[#0d2414]">Itemized Bill</h2>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {lineItems.map((item, i) => (
-              <div key={i} className="flex items-center justify-between px-5 py-3.5">
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">{item.icon}</span>
-                  <span className="text-sm text-gray-700">{item.label}</span>
-                </div>
-                <span className="text-sm font-semibold text-[#0d2414]">ETB {item.amount.toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-          <div className="border-t-2 border-[#9bc23c]/30 px-5 py-4 flex items-center justify-between bg-[#f7f9f2]">
-            <span className="font-bold text-[#0d2414]">Grand Total</span>
-            <span className="text-xl font-extrabold text-[#1d5c28]">ETB {grandTotal.toLocaleString()}</span>
-          </div>
-        </div>
-
-        {/* Stay summary */}
-        <div className="mt-5 grid grid-cols-2 gap-4">
-          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-            <p className="text-xs text-gray-400 mb-1">Check-in</p>
-            <p className="font-bold text-[#0d2414]">
-              {checkInDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-            <p className="text-xs text-gray-400 mb-1">Check-out</p>
-            <p className="font-bold text-[#0d2414]">
-              {today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-            </p>
-          </div>
-        </div>
-
-        <p className="mt-6 text-center text-xs text-gray-400">
-          Thank you for staying at Kuriftu Resort · Please visit the front desk for checkout
-        </p>
       </div>
     </div>
   );
@@ -989,10 +1196,14 @@ export default function CustomerDashboard() {
 
   return (
     <div className="min-h-screen font-sans" style={{ backgroundColor: '#f7f9f2' }}>
-      <Navbar active={activePage} onNav={setActivePage} user={user} onLogout={handleLogout} />
+      {/* Navbar overlays hero on home, solid on other pages */}
+      {activePage === 'home'
+        ? <Navbar active={activePage} onNav={setActivePage} user={user} onLogout={handleLogout} transparent />
+        : <Navbar active={activePage} onNav={setActivePage} user={user} onLogout={handleLogout} />
+      }
 
-      <div key={activePage}>
-        {activePage === 'home'     && <HomePage user={user} onNav={setActivePage} />}
+      <div key={activePage} style={{ marginTop: activePage === 'home' ? '-73px' : 0 }}>
+        {activePage === 'home'     && <HomePage user={user} />}
         {activePage === 'food'     && <FoodPage user={user} cart={cart} setCart={setCart} onOrderPlaced={handleOrderPlaced} />}
         {activePage === 'services' && <GuestServicesPage user={user} onRequestSent={handleRequestSent} />}
         {activePage === 'requests' && <RequestsPage requests={requests} onDelete={handleDeleteRequest} />}

@@ -394,7 +394,7 @@ function AnalyticsSection({ user }) {
     const fetchData = async () => {
       try {
         const [analytics, lb] = await Promise.all([
-          apiGet('/api/analytics').catch(() => null),
+          Promise.resolve(null), // analytics removed — use /manager for analytics
           apiGet('/api/staff/leaderboard').catch(() => []),
         ]);
         setAnalyticsData(analytics);
