@@ -163,11 +163,10 @@ JSON SCHEMA:
 }
 """.strip()
 
-if not GEMINI_API_KEY:
-    raise RuntimeError("GEMINI_API_KEY is not configured.")
-
-genai.configure(api_key=GEMINI_API_KEY)
-_gemini = genai.GenerativeModel(GEMINI_MODEL_NAME, system_instruction=SYSTEM_INSTRUCTIONS)
+_gemini = None
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    _gemini = genai.GenerativeModel(GEMINI_MODEL_NAME, system_instruction=SYSTEM_INSTRUCTIONS)
 
 
 def _utcnow() -> datetime:
@@ -363,14 +362,15 @@ def _classify_with_context(
         f"{message}"
     )
 
-    try:
-        response = _gemini.generate_content(prompt)
-        if response.text:
-            payload = _parse_json(response.text)
-            if isinstance(payload, dict):
-                return payload
-    except Exception:
-        pass
+    if _gemini is not None:
+        try:
+            response = _gemini.generate_content(prompt)
+            if response.text:
+                payload = _parse_json(response.text)
+                if isinstance(payload, dict):
+                    return payload
+        except Exception:
+            pass
 
     return _fallback_classification(message)
 

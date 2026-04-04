@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar, { Icon } from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
-import { apiGet, apiPost } from '../services/api';
+import { apiGet, apiPost, API_BASE_URL } from '../services/api';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+
+const API = `${API_BASE_URL}/api`;
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 

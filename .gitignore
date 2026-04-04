@@ -38,7 +38,7 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 
-# Images (uploaded assets)
-*.jpg
-*.jpeg
-*.webp
+# Keep resort images (needed for demo)
+# *.jpg
+# *.jpeg
+# *.webp

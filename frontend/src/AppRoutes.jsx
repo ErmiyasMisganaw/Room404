@@ -30,7 +30,7 @@ function PreviewEntryPoints() {
           <h1 className="text-xl font-semibold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
             Kuriftu Resort
           </h1>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Staff Portal · QA Preview</p>
+          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Staff Portal · Demo</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {links.map((link) => (
