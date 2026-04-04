@@ -578,7 +578,7 @@ function FoodPage({ user, cart, setCart, onOrderPlaced }) {
             category: 'popular',
             tag: null,
             desc: 'Freshly prepared by Kuriftu cafeteria staff.',
-            img: '/kuriftulogowithtext.webp',
+            img: '/kuriftulogo.jpg',
           };
         });
 

@@ -218,6 +218,33 @@ class FoodAvailabilityResponse(BaseModel):
     items: list[FoodAvailabilityItem]
 
 
+class CafeteriaAnalyticsResponse(BaseModel):
+    window_days: int = 30
+    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    total_orders_30d: int
+    completed_orders_30d: int
+    pending_orders: int
+    available_items: int
+    total_items: int
+    top_item: Optional[str] = None
+
+
 class CafeteriaCompleteTaskRequest(BaseModel):
     instruction_id: str
     note: Optional[str] = None
+
+
+class CustomerRequestItem(BaseModel):
+    instruction_id: str
+    type: str
+    queue_name: str
+    category: str
+    message: str
+    status: str
+    priority: str
+    created_at: datetime
+
+
+class CustomerRequestsResponse(BaseModel):
+    room_number: str
+    items: list[CustomerRequestItem]

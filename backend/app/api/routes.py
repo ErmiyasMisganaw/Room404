@@ -17,11 +17,14 @@ from app.schemas.schemas import (
     AnalyticsTopMaintenanceTypeItem,
     AnalyticsTopStaffItem,
     AgentResponseEnvelope,
+    CafeteriaAnalyticsResponse,
     CafeteriaCompleteTaskRequest,
     CafeteriaOrderData,
     ChatRequest,
     CleanerAcceptTaskRequest,
     CustomerReplyData,
+    CustomerRequestItem,
+    CustomerRequestsResponse,
     DispatchRequest,
     DispatchResponse,
     FoodAvailabilityItem,
@@ -160,11 +163,10 @@ JSON SCHEMA:
 }
 """.strip()
 
-if not GEMINI_API_KEY:
-    raise RuntimeError("GEMINI_API_KEY is not configured.")
-
-genai.configure(api_key=GEMINI_API_KEY)
-_gemini = genai.GenerativeModel(GEMINI_MODEL_NAME, system_instruction=SYSTEM_INSTRUCTIONS)
+_gemini = None
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    _gemini = genai.GenerativeModel(GEMINI_MODEL_NAME, system_instruction=SYSTEM_INSTRUCTIONS)
 
 
 def _utcnow() -> datetime:
@@ -360,14 +362,15 @@ def _classify_with_context(
         f"{message}"
     )
 
-    try:
-        response = _gemini.generate_content(prompt)
-        if response.text:
-            payload = _parse_json(response.text)
-            if isinstance(payload, dict):
-                return payload
-    except Exception:
-        pass
+    if _gemini is not None:
+        try:
+            response = _gemini.generate_content(prompt)
+            if response.text:
+                payload = _parse_json(response.text)
+                if isinstance(payload, dict):
+                    return payload
+        except Exception:
+            pass
 
     return _fallback_classification(message)
 
@@ -1157,13 +1160,20 @@ def get_task_feedback_queue(queue_name: str, db: Session = Depends(get_db)) -> T
 
 
 @router.get("/cafeteria/availability", response_model=FoodAvailabilityResponse)
-def get_cafeteria_availability(db: Session = Depends(get_db)) -> FoodAvailabilityResponse:
+def get_cafeteria_availability(
+    _: None = Depends(_require_roles("cafeteria", "manager", "receptionist")),
+    db: Session = Depends(get_db),
+) -> FoodAvailabilityResponse:
     menu = _build_menu_response(db, include_unavailable=True)
     return FoodAvailabilityResponse(open=menu.open, items=menu.items)
 
 
 @router.post("/cafeteria/availability", response_model=FoodAvailabilityResponse)
-def upsert_cafeteria_availability(item: FoodAvailabilityItem, db: Session = Depends(get_db)) -> FoodAvailabilityResponse:
+def upsert_cafeteria_availability(
+    item: FoodAvailabilityItem,
+    _: None = Depends(_require_roles("cafeteria", "manager", "receptionist")),
+    db: Session = Depends(get_db),
+) -> FoodAvailabilityResponse:
     _upsert_menu_item(
         db,
         item_name=item.item_name,
@@ -1184,6 +1194,56 @@ def get_menu(
     return _build_menu_response(db, include_unavailable=include_unavailable)
 
 
+@router.get("/customer/requests", response_model=CustomerRequestsResponse)
+def get_customer_requests(
+    room_number: str = Query(..., min_length=1),
+    _: None = Depends(_require_roles("customer", "manager", "receptionist")),
+    db: Session = Depends(get_db),
+) -> CustomerRequestsResponse:
+    room_value = room_number.strip()
+
+    rows = (
+        db.query(RoutedInstruction)
+        .filter(
+            RoutedInstruction.room == room_value,
+            RoutedInstruction.queue_name.in_(["food", "cleaners", "maintenance", "manager"]),
+        )
+        .order_by(RoutedInstruction.created_at.desc())
+        .all()
+    )
+
+    feedback_rows = (
+        db.query(TaskFeedback)
+        .filter(TaskFeedback.instruction_id.in_([row.instruction_id for row in rows]))
+        .all()
+        if rows
+        else []
+    )
+    feedback_by_id = {row.instruction_id: row for row in feedback_rows}
+
+    items = []
+    for row in rows:
+        feedback = feedback_by_id.get(row.instruction_id)
+        status = (feedback.state if feedback else row.status) or "pending"
+        item_type = "food" if row.queue_name == "food" else "service"
+        message = (row.description or row.staff_instruction or "").strip()
+
+        items.append(
+            CustomerRequestItem(
+                instruction_id=row.instruction_id,
+                type=item_type,
+                queue_name=row.queue_name,
+                category=row.category,
+                message=message,
+                status=status,
+                priority=row.priority,
+                created_at=row.created_at,
+            )
+        )
+
+    return CustomerRequestsResponse(room_number=room_value, items=items)
+
+
 @router.post("/menu", response_model=MenuResponse)
 def upsert_menu(item: MenuItemUpsertRequest, db: Session = Depends(get_db)) -> MenuResponse:
     if item.updated_by_role.strip().lower() != "cafeteria":
@@ -1202,7 +1262,11 @@ def upsert_menu(item: MenuItemUpsertRequest, db: Session = Depends(get_db)) -> M
 
 
 @router.post("/cafeteria/complete-task", response_model=TaskFeedbackRecord)
-def complete_cafeteria_task(payload: CafeteriaCompleteTaskRequest, db: Session = Depends(get_db)) -> TaskFeedbackRecord:
+def complete_cafeteria_task(
+    payload: CafeteriaCompleteTaskRequest,
+    _: None = Depends(_require_roles("cafeteria", "manager", "receptionist")),
+    db: Session = Depends(get_db),
+) -> TaskFeedbackRecord:
     feedback = upsert_task_feedback(
         TaskFeedbackUpdateRequest(
             instruction_id=payload.instruction_id,
@@ -1213,6 +1277,50 @@ def complete_cafeteria_task(payload: CafeteriaCompleteTaskRequest, db: Session =
         db,
     )
     return feedback
+
+
+@router.get("/cafeteria/analytics", response_model=CafeteriaAnalyticsResponse)
+def get_cafeteria_analytics(
+    _: None = Depends(_require_roles("cafeteria", "manager", "receptionist")),
+    db: Session = Depends(get_db),
+) -> CafeteriaAnalyticsResponse:
+    cutoff = _utcnow() - timedelta(days=30)
+
+    food_tasks_30d = (
+        db.query(Task)
+        .filter(Task.created_at >= cutoff, Task.category == "Food")
+        .all()
+    )
+    completed_orders_30d = [task for task in food_tasks_30d if (task.status or "").strip().lower() in {"done", "completed"}]
+
+    pending_orders = (
+        db.query(RoutedInstruction)
+        .filter(
+            RoutedInstruction.queue_name == "food",
+            RoutedInstruction.status.in_(["pending", "in_progress"]),
+        )
+        .count()
+    )
+
+    menu_rows = db.query(FoodAvailability).all()
+    available_items = sum(1 for item in menu_rows if item.is_available and int(item.available_quantity or 0) > 0)
+
+    menu_items = [row.item_name for row in menu_rows]
+    food_counter = Counter(_extract_food_name_from_task(task, menu_items) for task in food_tasks_30d)
+    top_item = food_counter.most_common(1)[0][0] if food_counter else None
+    if top_item == "Unknown":
+        top_item = None
+
+    return CafeteriaAnalyticsResponse(
+        window_days=30,
+        generated_at=_utcnow(),
+        total_orders_30d=len(food_tasks_30d),
+        completed_orders_30d=len(completed_orders_30d),
+        pending_orders=pending_orders,
+        available_items=available_items,
+        total_items=len(menu_rows),
+        top_item=top_item,
+    )
 
 
 @router.get("/staff/leaderboard", response_model=StaffLeaderboardResponse)

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/ws';
+const WS_URL =
+  import.meta.env.VITE_WS_URL ||
+  (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000')
+    .replace(/^http/, 'ws') + '/api/ws';
 
 /**
  * Connects to the backend WebSocket and calls onMessage with parsed events.
