@@ -13,7 +13,7 @@ const AuthContext = createContext({
 });
 
 const roleRouteMap = {
-  manager: '/reception',
+  manager: '/manager',
   cleaner: '/cleaner',
   maintenance: '/maintenance',
   cafeteria: '/cafeteria',

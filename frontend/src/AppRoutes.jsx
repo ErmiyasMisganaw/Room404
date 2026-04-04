@@ -13,39 +13,37 @@ import { AuthProvider, roleRouteMap, useAuth } from './context/AuthContext';
 
 function PreviewEntryPoints() {
   const links = [
-    { label: 'Cleaner UI', path: '/preview/cleaner' },
-    { label: 'Maintenance UI', path: '/preview/maintenance' },
-    { label: 'Cafeteria UI', path: '/preview/cafeteria' },
-    { label: 'Reception UI', path: '/preview/reception' },
-    { label: 'Customer UI', path: '/preview/customer' },
-    { label: 'API Workbench', path: '/preview/api' },
-    { label: 'Manager Analytics', path: '/manager' },
+    { label: 'Reception', path: '/preview/reception', color: '#1d5c28' },
+    { label: 'Cleaner', path: '/preview/cleaner', color: '#2d7a3a' },
+    { label: 'Maintenance', path: '/preview/maintenance', color: '#8a6a10' },
+    { label: 'Cafeteria', path: '/preview/cafeteria', color: '#8a4a20' },
+    { label: 'Customer', path: '/preview/customer', color: '#d4186e' },
+    { label: 'Manager Analytics', path: '/manager/preview', color: '#6366f1' },
+    { label: 'API Workbench', path: '/preview/api', color: '#374151' },
   ];
 
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-10 font-sans">
-      <div className="mx-auto w-full max-w-2xl rounded-2xl border border-gray-200 bg-white p-6 shadow-lg">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600">Temporary QA Entry</p>
-        <h1 className="mt-2 text-2xl font-bold text-gray-900">Dashboard Preview Links</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Use these temporary routes to check role UIs without logging in.
-        </p>
-
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <main className="min-h-screen px-4 py-12 font-sans" style={{ backgroundColor: '#f4f6ed' }}>
+      <div className="mx-auto w-full max-w-lg">
+        <div className="mb-8 text-center">
+          <img src="/kuriftulogo.jpg" alt="Kuriftu" className="h-12 w-12 rounded-xl object-cover mx-auto mb-4 shadow-md" />
+          <h1 className="text-xl font-semibold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+            Kuriftu Resort
+          </h1>
+          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Staff Portal · QA Preview</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           {links.map((link) => (
-            <Link
-              key={link.path}
-              to={link.path}
-              className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:-translate-y-0.5 hover:bg-blue-100"
-            >
+            <Link key={link.path} to={link.path}
+              className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-3.5 text-sm font-medium text-gray-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: link.color }} />
               {link.label}
             </Link>
           ))}
         </div>
-
-        <div className="mt-6 border-t border-gray-200 pt-4 text-sm">
-          <Link to="/login" className="font-semibold text-orange-500 hover:text-orange-400">
-            Back to Login
+        <div className="mt-6 text-center">
+          <Link to="/login" className="text-xs text-gray-400 hover:text-gray-600 transition">
+            ← Back to Login
           </Link>
         </div>
       </div>
@@ -110,7 +108,12 @@ export default function AppRoutes() {
             <Route path="/customer" element={<CustomerDashboard />} />
           </Route>
 
-          <Route path="/manager" element={<ManagerDashboard />} />
+          <Route element={<ProtectedRoute allowedRoles={['manager', 'receptionist']} />}>
+            <Route path="/manager" element={<ManagerDashboard />} />
+          </Route>
+
+          {/* Unprotected fallback for direct access with key modal */}
+          <Route path="/manager/preview" element={<ManagerDashboard />} />
 
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

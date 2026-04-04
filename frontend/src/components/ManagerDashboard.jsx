@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { API_BASE_URL } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import Sidebar, { Icon } from './Sidebar';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -145,12 +146,14 @@ function KeyModal({ onSubmit }) {
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { user: authUser, logout } = useAuth();
+  const user = authUser || { id: 'MGR-001', name: 'Manager', role: 'manager' };
+
   const [key, setKey] = useState(() => sessionStorage.getItem('mgr_key') || '');
   const [showKeyModal, setShowKeyModal] = useState(!sessionStorage.getItem('mgr_key'));
   const [summary, setSummary] = useState(null);
   const [legacy, setLegacy] = useState(null);
-  const [status, setStatus] = useState('idle'); // idle | loading | forbidden | error | ok
+  const [status, setStatus] = useState('idle');
   const [lastRefresh, setLastRefresh] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const pollRef = useRef(null);
@@ -168,392 +171,309 @@ export default function ManagerDashboard() {
       setLastRefresh(new Date().toISOString());
       setStatus('ok');
     } catch (err) {
-      if (err.status === 403) {
-        setStatus('forbidden');
-        sessionStorage.removeItem('mgr_key');
-      } else {
-        setStatus('error');
-      }
+      if (err.status === 403) { setStatus('forbidden'); sessionStorage.removeItem('mgr_key'); }
+      else setStatus('error');
     }
   }, []);
 
-  // Initial load when key is set
-  useEffect(() => {
-    if (key && !showKeyModal) load(key);
-  }, [key, showKeyModal, load]);
+  useEffect(() => { if (key && !showKeyModal) load(key); }, [key, showKeyModal, load]);
 
-  // Polling
   useEffect(() => {
     if (!autoRefresh || !key || showKeyModal) return;
     pollRef.current = setInterval(() => load(key), POLL_INTERVAL);
     return () => clearInterval(pollRef.current);
   }, [autoRefresh, key, showKeyModal, load]);
 
-  const handleKeySubmit = (k) => {
-    sessionStorage.setItem('mgr_key', k);
-    setKey(k);
-    setShowKeyModal(false);
-  };
-
+  const handleKeySubmit = (k) => { sessionStorage.setItem('mgr_key', k); setKey(k); setShowKeyModal(false); };
   const handleRefresh = () => load(key);
-
   const handleChangeKey = () => {
-    sessionStorage.removeItem('mgr_key');
-    setKey('');
-    setSummary(null);
-    setLegacy(null);
-    setStatus('idle');
-    setShowKeyModal(true);
+    sessionStorage.removeItem('mgr_key'); setKey(''); setSummary(null); setLegacy(null);
+    setStatus('idle'); setShowKeyModal(true);
   };
-
   const handleSignOut = async () => {
     sessionStorage.removeItem('mgr_key');
-    try {
-      await logout?.();
-    } finally {
-      navigate('/login', { replace: true });
-    }
+    try { await logout?.(); } finally { navigate('/login', { replace: true }); }
   };
 
-  // ── Derived chart data ──
   const topFood = (summary?.top_food || []).map((d) => ({ name: d.name, Orders: d.orders }));
   const topStaff = (summary?.top_staff || []).map((d) => ({ name: d.name, Completed: d.completed_tasks }));
   const topMaint = (summary?.top_maintenance_types || []).map((d) => ({ name: d.type, Count: d.count }));
-  const byStatus = legacy?.by_status
-    ? Object.entries(legacy.by_status).map(([name, value]) => ({ name, value }))
-    : [];
-  const byCategory = legacy?.by_category
-    ? Object.entries(legacy.by_category).map(([name, value]) => ({ name, value }))
-    : [];
+  const byStatus = legacy?.by_status ? Object.entries(legacy.by_status).map(([name, value]) => ({ name, value })) : [];
+  const byCategory = legacy?.by_category ? Object.entries(legacy.by_category).map(([name, value]) => ({ name, value })) : [];
 
   const isEmpty = summary &&
-    summary.total_tasks === 0 &&
-    summary.total_food_orders === 0 &&
-    summary.total_maintenance_tasks === 0 &&
-    summary.total_cleaner_tasks === 0 &&
-    topFood.length === 0 &&
-    topStaff.length === 0 &&
-    topMaint.length === 0;
+    summary.total_tasks === 0 && summary.total_food_orders === 0 &&
+    summary.total_maintenance_tasks === 0 && summary.total_cleaner_tasks === 0 &&
+    topFood.length === 0 && topStaff.length === 0 && topMaint.length === 0;
+
+  const NAV = [{ key: 'analytics', label: 'Analytics', icon: Icon.analytics }];
 
   return (
-    <div className="min-h-screen font-sans" style={{ backgroundColor: '#f4f6ed' }}>
+    <div className="flex min-h-screen font-sans" style={{ backgroundColor: '#f4f6ed' }}>
       {showKeyModal && <KeyModal onSubmit={handleKeySubmit} />}
 
-      {/* Header */}
-      <div className="border-b border-[#9bc23c]/20 bg-white shadow-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+      <Sidebar navItems={NAV} activeSection="analytics" onSectionChange={() => {}}
+        user={user} onLogout={handleSignOut} />
+
+      <main className="flex-1 lg:ml-64 min-h-screen">
+        {/* Page header */}
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4 shadow-sm">
           <div className="flex items-center gap-3">
-            <img src="/kuriftulogo.jpg" alt="Kuriftu" className="h-9 w-9 rounded-xl object-cover" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+              {Icon.analytics}
+            </div>
             <div>
-              <p className="font-bold text-[#0d2414] text-sm leading-tight">Kuriftu Resort</p>
-              <p className="text-[10px] text-[#9bc23c] font-semibold uppercase tracking-wider">Manager Analytics</p>
+              <h1 className="text-base font-semibold text-gray-900">Manager Analytics</h1>
+              <p className="text-xs text-gray-400">Last 30 days · {lastRefresh ? `Updated ${tsLabel(lastRefresh)}` : 'Not loaded'}</p>
             </div>
             {status === 'ok' && (
-              <span className="ml-2 flex items-center gap-1 rounded-full bg-[#9bc23c]/15 px-2.5 py-0.5 text-[10px] font-bold text-[#2d5c10]">
+              <span className="flex items-center gap-1 rounded-full bg-[#9bc23c]/12 px-2.5 py-0.5 text-[10px] font-bold text-[#2d5c10]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#9bc23c]" />
-                Secure Mode
+                Secure
               </span>
             )}
           </div>
-
-          <div className="flex items-center gap-3">
-            {lastRefresh && (
-              <p className="hidden sm:block text-xs text-gray-400">
-                Refreshed {tsLabel(lastRefresh)}
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={() => setAutoRefresh((p) => !p)}
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setAutoRefresh((p) => !p)}
               className={`hidden sm:flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-                autoRefresh ? 'border-[#9bc23c]/40 bg-[#9bc23c]/10 text-[#2d5c10]' : 'border-gray-200 text-gray-400'
-              }`}
-            >
-              {autoRefresh ? '⏱ Auto-refresh on' : '⏱ Auto-refresh off'}
+                autoRefresh ? 'border-[#9bc23c]/40 bg-[#9bc23c]/8 text-[#2d5c10]' : 'border-gray-200 text-gray-400'
+              }`}>
+              {autoRefresh ? 'Auto on' : 'Auto off'}
             </button>
-            <button
-              type="button"
-              onClick={handleRefresh}
-              disabled={status === 'loading'}
-              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:border-[#9bc23c]/40 hover:text-[#0d2414] disabled:opacity-40"
-            >
+            <button type="button" onClick={handleRefresh} disabled={status === 'loading'}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:border-[#9bc23c]/40 disabled:opacity-40">
               {status === 'loading'
                 ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-[#9bc23c]" />
-                : '↻'
-              }
-              Refresh
+                : '↻'} Refresh
             </button>
-            <button
-              type="button"
-              onClick={handleChangeKey}
-              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:border-red-200 hover:text-red-500"
-            >
-              🔑 Change Key
-            </button>
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:border-red-200 hover:text-red-500"
-            >
-              Sign Out
+            <button type="button" onClick={handleChangeKey}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:border-indigo-200 hover:text-indigo-600">
+              🔑 Key
             </button>
           </div>
         </div>
-      </div>
 
-      <main className="mx-auto max-w-7xl px-6 py-8 space-y-8">
-
-        {/* ── Forbidden ── */}
-        {status === 'forbidden' && (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-3xl">🚫</div>
-            <h2 className="text-lg font-bold text-gray-800">Manager Access Required</h2>
-            <p className="mt-2 text-sm text-gray-500 max-w-sm">
-              The key you entered was rejected. Please check your manager key and try again.
-            </p>
-            <button
-              type="button"
-              onClick={handleChangeKey}
-              className="mt-5 rounded-xl bg-[#0d2414] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1a4a22]"
-            >
-              Enter Key Again
-            </button>
-          </div>
-        )}
-
-        {/* ── Network error ── */}
-        {status === 'error' && (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-3xl">⚠️</div>
-            <h2 className="text-lg font-bold text-gray-800">Backend Unavailable</h2>
-            <p className="mt-2 text-sm text-gray-500 max-w-sm">
-              Could not reach the server. Make sure the backend is running and try again.
-            </p>
-            <button
-              type="button"
-              onClick={handleRefresh}
-              className="mt-5 rounded-xl bg-[#0d2414] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1a4a22]"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-
-        {/* ── Loading skeletons ── */}
-        {status === 'loading' && (
-          <>
-            <KpiSkeleton />
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <ChartSkeleton /><ChartSkeleton /><ChartSkeleton /><ChartSkeleton />
+        <div className="px-6 py-8 space-y-8">
+          {status === 'forbidden' && (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-3xl">🚫</div>
+              <h2 className="text-lg font-semibold text-gray-800">Manager Access Required</h2>
+              <p className="mt-2 text-sm text-gray-500 max-w-sm">The key you entered was rejected.</p>
+              <button type="button" onClick={handleChangeKey}
+                className="mt-5 rounded-xl bg-[#0d2414] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1a4a22]">
+                Enter Key Again
+              </button>
             </div>
-          </>
-        )}
+          )}
 
-        {/* ── Empty state ── */}
-        {status === 'ok' && isEmpty && (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="mb-4 text-4xl">📊</div>
-            <h2 className="text-lg font-bold text-gray-700">No Activity in Last 30 Days</h2>
-            <p className="mt-2 text-sm text-gray-400">Tasks and orders will appear here once the system is in use.</p>
-          </div>
-        )}
-
-        {/* ── Data ── */}
-        {status === 'ok' && summary && !isEmpty && (
-          <>
-            {/* Timestamps */}
-            {summary.generated_at && (
-              <p className="text-xs text-gray-400">
-                Data generated at {tsLabel(summary.generated_at)} · Window: last {summary.window_days} days
-              </p>
-            )}
-
-            {/* KPI cards */}
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <KpiCard label="Total Tasks (30d)" value={summary.total_tasks} icon="📋" color="bg-[#1d5c28]/5 border-[#1d5c28]/20" textColor="text-[#1d5c28]" />
-              <KpiCard label="Food Orders (30d)" value={summary.total_food_orders} icon="🍽️" color="bg-amber-50 border-amber-200" textColor="text-amber-700" />
-              <KpiCard label="Maintenance (30d)" value={summary.total_maintenance_tasks} icon="🔧" color="bg-blue-50 border-blue-200" textColor="text-blue-700" />
-              <KpiCard label="Cleaner Tasks (30d)" value={summary.total_cleaner_tasks} icon="🧹" color="bg-[#9bc23c]/10 border-[#9bc23c]/30" textColor="text-[#3a6e10]" />
+          {status === 'error' && (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-3xl">⚠️</div>
+              <h2 className="text-lg font-semibold text-gray-800">Backend Unavailable</h2>
+              <p className="mt-2 text-sm text-gray-500 max-w-sm">Make sure the backend is running and try again.</p>
+              <button type="button" onClick={handleRefresh}
+                className="mt-5 rounded-xl bg-[#0d2414] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1a4a22]">
+                Retry
+              </button>
             </div>
+          )}
 
-            {/* Charts row 1 */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-
-              {/* Top Food */}
-              <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                <h3 className="mb-1 text-sm font-bold text-[#0d2414]">Top Food Orders</h3>
-                <p className="mb-4 text-xs text-gray-400">Most ordered items in last 30 days</p>
-                {topFood.length === 0 ? (
-                  <div className="flex h-48 items-center justify-center text-sm text-gray-400">No food orders yet</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={topFood} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                      <Tooltip content={<ChartTip />} cursor={{ fill: '#9bc23c', fillOpacity: 0.08 }} />
-                      <Bar dataKey="Orders" radius={[6, 6, 0, 0]} maxBarSize={44}>
-                        {topFood.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-
-              {/* Top Staff */}
-              <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                <h3 className="mb-1 text-sm font-bold text-[#0d2414]">Top Staff Performance</h3>
-                <p className="mb-4 text-xs text-gray-400">Completed tasks per staff member</p>
-                {topStaff.length === 0 ? (
-                  <div className="flex h-48 items-center justify-center text-sm text-gray-400">No staff data yet</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={topStaff} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                      <Tooltip content={<ChartTip />} cursor={{ fill: '#9bc23c', fillOpacity: 0.08 }} />
-                      <Bar dataKey="Completed" radius={[6, 6, 0, 0]} maxBarSize={44}>
-                        {topStaff.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-
-            {/* Charts row 2 */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-
-              {/* Top Maintenance Types */}
-              <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                <h3 className="mb-1 text-sm font-bold text-[#0d2414]">Top Maintenance Types</h3>
-                <p className="mb-4 text-xs text-gray-400">Most common issue categories</p>
-                {topMaint.length === 0 ? (
-                  <div className="flex h-48 items-center justify-center text-sm text-gray-400">No maintenance data yet</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <PieChart>
-                      <Pie data={topMaint} dataKey="Count" nameKey="name" cx="50%" cy="50%"
-                        innerRadius={50} outerRadius={85} paddingAngle={3} strokeWidth={0}>
-                        {topMaint.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip content={<ChartTip />} />
-                      <Legend verticalAlign="bottom" iconType="circle" iconSize={8}
-                        formatter={(v) => <span className="text-xs text-gray-600">{v}</span>} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-
-              {/* Legacy: by_status */}
-              {byStatus.length > 0 && (
-                <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                  <h3 className="mb-1 text-sm font-bold text-[#0d2414]">Task Status Breakdown</h3>
-                  <p className="mb-4 text-xs text-gray-400">All-time status distribution</p>
-                  <ResponsiveContainer width="100%" height={220}>
-                    <PieChart>
-                      <Pie data={byStatus} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                        innerRadius={50} outerRadius={85} paddingAngle={3} strokeWidth={0}>
-                        {byStatus.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip content={<ChartTip />} />
-                      <Legend verticalAlign="bottom" iconType="circle" iconSize={8}
-                        formatter={(v) => <span className="text-xs text-gray-600 capitalize">{v}</span>} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
-
-            {/* Legacy: occupancy + by_category */}
-            {legacy && (
+          {status === 'loading' && (
+            <>
+              <KpiSkeleton />
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                {/* Occupancy */}
-                {legacy.occupancy_rate != null && (
-                  <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-bold text-[#0d2414]">Hotel Occupancy</h3>
-                      <span className="text-2xl font-extrabold text-[#2d7a3a]">{legacy.occupancy_rate}%</span>
-                    </div>
-                    <div className="h-4 overflow-hidden rounded-full bg-gray-100">
-                      <div className="h-4 rounded-full bg-gradient-to-r from-[#2d7a3a] via-[#9bc23c] to-[#b4d655] transition-all duration-1000"
-                        style={{ width: `${legacy.occupancy_rate}%` }} />
-                    </div>
-                    <div className="mt-3 grid grid-cols-3 gap-3 text-center">
-                      {[
-                        { label: 'Total Rooms', value: legacy.total_rooms },
-                        { label: 'Occupied', value: legacy.occupied_rooms },
-                        { label: 'Need Cleaning', value: legacy.cleaning_needed },
-                      ].map((s) => (
-                        <div key={s.label} className="rounded-xl bg-gray-50 p-3">
-                          <p className="text-lg font-bold text-[#0d2414]">{fmt(s.value)}</p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">{s.label}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <ChartSkeleton /><ChartSkeleton /><ChartSkeleton /><ChartSkeleton />
+              </div>
+            </>
+          )}
 
-                {/* By category */}
-                {byCategory.length > 0 && (
+          {status === 'ok' && isEmpty && (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <div className="mb-4 text-4xl">📊</div>
+              <h2 className="text-lg font-semibold text-gray-700">No Activity in Last 30 Days</h2>
+              <p className="mt-2 text-sm text-gray-400">Tasks and orders will appear here once the system is in use.</p>
+            </div>
+          )}
+
+          {status === 'ok' && summary && !isEmpty && (
+            <>
+              {summary.generated_at && (
+                <p className="text-xs text-gray-400">
+                  Generated {tsLabel(summary.generated_at)} · {summary.window_days}-day window
+                </p>
+              )}
+
+              {/* KPI cards */}
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <KpiCard label="Total Tasks (30d)" value={summary.total_tasks} icon="📋" color="bg-[#1d5c28]/5 border-[#1d5c28]/20" textColor="text-[#1d5c28]" />
+                <KpiCard label="Food Orders" value={summary.total_food_orders} icon="🍽️" color="bg-amber-50 border-amber-200" textColor="text-amber-700" />
+                <KpiCard label="Maintenance" value={summary.total_maintenance_tasks} icon="🔧" color="bg-blue-50 border-blue-200" textColor="text-blue-700" />
+                <KpiCard label="Cleaner Tasks" value={summary.total_cleaner_tasks} icon="🧹" color="bg-[#9bc23c]/10 border-[#9bc23c]/30" textColor="text-[#3a6e10]" />
+              </div>
+
+              {/* Charts */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <h3 className="mb-1 text-sm font-semibold text-gray-900">Top Food Orders</h3>
+                  <p className="mb-4 text-xs text-gray-400">Most ordered items · last 30 days</p>
+                  {topFood.length === 0
+                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No data</div>
+                    : <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={topFood} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                          <Tooltip content={<ChartTip />} cursor={{ fill: '#9bc23c', fillOpacity: 0.08 }} />
+                          <Bar dataKey="Orders" radius={[6, 6, 0, 0]} maxBarSize={44}>
+                            {topFood.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                  }
+                </div>
+
+                <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <h3 className="mb-1 text-sm font-semibold text-gray-900">Top Staff Performance</h3>
+                  <p className="mb-4 text-xs text-gray-400">Completed tasks per staff member</p>
+                  {topStaff.length === 0
+                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No data</div>
+                    : <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={topStaff} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                          <Tooltip content={<ChartTip />} cursor={{ fill: '#9bc23c', fillOpacity: 0.08 }} />
+                          <Bar dataKey="Completed" radius={[6, 6, 0, 0]} maxBarSize={44}>
+                            {topStaff.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                  }
+                </div>
+
+                <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <h3 className="mb-1 text-sm font-semibold text-gray-900">Maintenance Types</h3>
+                  <p className="mb-4 text-xs text-gray-400">Most common issue categories</p>
+                  {topMaint.length === 0
+                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No data</div>
+                    : <ResponsiveContainer width="100%" height={220}>
+                        <PieChart>
+                          <Pie data={topMaint} dataKey="Count" nameKey="name" cx="50%" cy="50%"
+                            innerRadius={50} outerRadius={85} paddingAngle={3} strokeWidth={0}>
+                            {topMaint.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                          </Pie>
+                          <Tooltip content={<ChartTip />} />
+                          <Legend verticalAlign="bottom" iconType="circle" iconSize={8}
+                            formatter={(v) => <span className="text-xs text-gray-600">{v}</span>} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                  }
+                </div>
+
+                {byStatus.length > 0 && (
                   <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                    <h3 className="mb-1 text-sm font-bold text-[#0d2414]">Requests by Category</h3>
-                    <p className="mb-4 text-xs text-gray-400">All-time breakdown</p>
-                    <ResponsiveContainer width="100%" height={180}>
-                      <BarChart data={byCategory} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                        <Tooltip content={<ChartTip />} cursor={{ fill: '#9bc23c', fillOpacity: 0.08 }} />
-                        <Bar dataKey="value" name="Tasks" radius={[6, 6, 0, 0]} maxBarSize={44}>
-                          {byCategory.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                        </Bar>
-                      </BarChart>
+                    <h3 className="mb-1 text-sm font-semibold text-gray-900">Task Status Breakdown</h3>
+                    <p className="mb-4 text-xs text-gray-400">All-time distribution</p>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie data={byStatus} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                          innerRadius={50} outerRadius={85} paddingAngle={3} strokeWidth={0}>
+                          {byStatus.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip content={<ChartTip />} />
+                        <Legend verticalAlign="bottom" iconType="circle" iconSize={8}
+                          formatter={(v) => <span className="text-xs text-gray-600 capitalize">{v}</span>} />
+                      </PieChart>
                     </ResponsiveContainer>
                   </div>
                 )}
               </div>
-            )}
 
-            {/* Top lists table */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              {[
-                { title: 'Top Food Items', rows: summary.top_food, cols: ['name', 'orders'], labels: ['Item', 'Orders'] },
-                { title: 'Top Staff', rows: summary.top_staff, cols: ['name', 'completed_tasks'], labels: ['Staff', 'Completed'] },
-                { title: 'Maintenance Types', rows: summary.top_maintenance_types, cols: ['type', 'count'], labels: ['Type', 'Count'] },
-              ].map((tbl) => (
-                <div key={tbl.title} className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-                  <div className="border-b border-gray-50 px-5 py-3">
-                    <h3 className="text-sm font-bold text-[#0d2414]">{tbl.title}</h3>
-                  </div>
-                  {!tbl.rows?.length ? (
-                    <div className="px-5 py-8 text-center text-xs text-gray-400">No data</div>
-                  ) : (
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-gray-50">
-                          {tbl.labels.map((l) => (
-                            <th key={l} className="px-5 py-2 text-left font-semibold text-gray-400 uppercase tracking-wider">{l}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {tbl.rows.map((row, i) => (
-                          <tr key={i} className="hover:bg-gray-50 transition">
-                            {tbl.cols.map((col) => (
-                              <td key={col} className="px-5 py-3 font-medium text-[#0d2414]">{fmt(row[col])}</td>
-                            ))}
-                          </tr>
+              {/* Occupancy + category */}
+              {legacy && (
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                  {legacy.occupancy_rate != null && (
+                    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-semibold text-gray-900">Hotel Occupancy</h3>
+                        <span className="text-2xl font-bold text-[#2d7a3a]">{legacy.occupancy_rate}%</span>
+                      </div>
+                      <div className="h-3 overflow-hidden rounded-full bg-gray-100">
+                        <div className="h-3 rounded-full bg-gradient-to-r from-[#2d7a3a] to-[#9bc23c] transition-all duration-1000"
+                          style={{ width: `${legacy.occupancy_rate}%` }} />
+                      </div>
+                      <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+                        {[
+                          { label: 'Total', value: legacy.total_rooms },
+                          { label: 'Occupied', value: legacy.occupied_rooms },
+                          { label: 'Cleaning', value: legacy.cleaning_needed },
+                        ].map((s) => (
+                          <div key={s.label} className="rounded-xl bg-gray-50 p-3">
+                            <p className="text-lg font-bold text-gray-900">{fmt(s.value)}</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">{s.label}</p>
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
+                      </div>
+                    </div>
+                  )}
+                  {byCategory.length > 0 && (
+                    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                      <h3 className="mb-1 text-sm font-semibold text-gray-900">Requests by Category</h3>
+                      <p className="mb-4 text-xs text-gray-400">All-time breakdown</p>
+                      <ResponsiveContainer width="100%" height={180}>
+                        <BarChart data={byCategory} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                          <Tooltip content={<ChartTip />} cursor={{ fill: '#9bc23c', fillOpacity: 0.08 }} />
+                          <Bar dataKey="value" name="Tasks" radius={[6, 6, 0, 0]} maxBarSize={44}>
+                            {byCategory.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   )}
                 </div>
-              ))}
-            </div>
-          </>
-        )}
+              )}
+
+              {/* Top lists */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                {[
+                  { title: 'Top Food Items', rows: summary.top_food, cols: ['name', 'orders'], labels: ['Item', 'Orders'] },
+                  { title: 'Top Staff', rows: summary.top_staff, cols: ['name', 'completed_tasks'], labels: ['Staff', 'Completed'] },
+                  { title: 'Maintenance Types', rows: summary.top_maintenance_types, cols: ['type', 'count'], labels: ['Type', 'Count'] },
+                ].map((tbl) => (
+                  <div key={tbl.title} className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+                    <div className="border-b border-gray-50 px-5 py-3">
+                      <h3 className="text-sm font-semibold text-gray-900">{tbl.title}</h3>
+                    </div>
+                    {!tbl.rows?.length
+                      ? <div className="px-5 py-8 text-center text-xs text-gray-400">No data</div>
+                      : <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-gray-50">
+                              {tbl.labels.map((l) => (
+                                <th key={l} className="px-5 py-2 text-left font-semibold text-gray-400 uppercase tracking-wider">{l}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {tbl.rows.map((row, i) => (
+                              <tr key={i} className="hover:bg-gray-50 transition">
+                                {tbl.cols.map((col) => (
+                                  <td key={col} className="px-5 py-3 font-medium text-gray-800">{fmt(row[col])}</td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                    }
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </main>
     </div>
   );

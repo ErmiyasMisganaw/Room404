@@ -1,0 +1,14 @@
+# Gemini
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL_NAME=gemini-3.1-flash-lite-preview
+
+# Database
+# Local fallback (default if DATABASE_URL is unset): sqlite:///./room404.db
+# Supabase pooled example:
+# DATABASE_URL=postgresql+psycopg://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
+DATABASE_URL=
+
+# Frontend origins
+# Comma-separated (no spaces required)
+# Example: http://localhost:5173,https://your-frontend.vercel.app
+CORS_ALLOWED_ORIGINS=http://localhost:5173
