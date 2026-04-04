@@ -18,34 +18,34 @@ const roleRouteMap = {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
 
-  const login = async ({ identifier, password, role }) => {
-    // Backend integration later: replace timeout + local checks with real API authentication.
-    await new Promise((resolve) => {
-      setTimeout(resolve, 900);
-    });
+  const login = async ({ identifier, password }) => {
+    // Backend integration later: replace with real API call that returns role.
+    await new Promise((resolve) => setTimeout(resolve, 900));
 
     const normalizedIdentifier = identifier?.trim();
-    const normalizedRole = role?.toLowerCase();
 
-    if (!normalizedIdentifier || !password?.trim() || !roleRouteMap[normalizedRole]) {
-      return {
-        success: false,
-        message: 'Invalid login input.',
-      };
+    if (!normalizedIdentifier || !password?.trim()) {
+      return { success: false, message: 'Invalid login input.' };
     }
 
     if (password.trim().length < 4) {
-      return {
-        success: false,
-        message: 'Password must be at least 4 characters.',
-      };
+      return { success: false, message: 'Password must be at least 4 characters.' };
     }
+
+    // Simulate role detection from backend based on username prefix
+    let detectedRole = 'customer';
+    const lower = normalizedIdentifier.toLowerCase();
+    if (lower.startsWith('cleaner')) detectedRole = 'cleaner';
+    else if (lower.startsWith('maintenance')) detectedRole = 'maintenance';
+    else if (lower.startsWith('cafeteria') || lower.startsWith('kitchen')) detectedRole = 'cafeteria';
+    else if (lower.startsWith('reception') || lower.startsWith('admin')) detectedRole = 'receptionist';
 
     const nextUser = {
       id: `user-${Date.now()}`,
       name: normalizedIdentifier,
-      role: normalizedRole,
-      roomNumber: normalizedRole === 'customer' ? '212' : null,
+      role: detectedRole,
+      roomNumber: detectedRole === 'customer' ? '212' : null,
+      checkInDate: detectedRole === 'customer' ? new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() : null,
     };
 
     setUser(nextUser);
@@ -53,7 +53,7 @@ export function AuthProvider({ children }) {
     return {
       success: true,
       user: nextUser,
-      redirectTo: roleRouteMap[normalizedRole],
+      redirectTo: roleRouteMap[detectedRole],
     };
   };
 
