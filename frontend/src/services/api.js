@@ -81,6 +81,10 @@ export function apiPatch(path, body) {
   });
 }
 
+export function apiDelete(path) {
+  return request(path, {method: 'DELETE'});
+}
+
 export function getHealth() {
   return apiGet('/api/health');
 }
@@ -179,6 +183,18 @@ export function getMenu(includeUnavailable = false) {
 export function getCustomerRequests(roomNumber) {
   const value = encodeURIComponent(`${roomNumber || ''}`.trim());
   return apiGet(`/api/customer/requests?room_number=${value}`);
+}
+
+export function cancelCustomerRequest(instructionId) {
+  return apiDelete(`/api/customer/requests/${encodeURIComponent(instructionId)}`);
+}
+
+export function deleteMenuItem(itemName) {
+  return apiDelete(`/api/menu/${encodeURIComponent(itemName)}`);
+}
+
+export function addMenuItem(payload) {
+  return apiPost('/api/menu', payload);
 }
 
 export {API_BASE_URL};

@@ -1244,6 +1244,55 @@ def get_customer_requests(
     return CustomerRequestsResponse(room_number=room_value, items=items)
 
 
+@router.delete("/customer/requests/{instruction_id}")
+def cancel_customer_request(
+    instruction_id: str,
+    _: None = Depends(_require_roles("customer", "manager", "receptionist")),
+    db: Session = Depends(get_db),
+) -> dict:
+    instruction = (
+        db.query(RoutedInstruction)
+        .filter(RoutedInstruction.instruction_id == instruction_id)
+        .first()
+    )
+    if not instruction:
+        raise HTTPException(status_code=404, detail="Request not found.")
+
+    feedback = (
+        db.query(TaskFeedback)
+        .filter(TaskFeedback.instruction_id == instruction_id)
+        .first()
+    )
+    if feedback and feedback.state == "completed":
+        raise HTTPException(status_code=400, detail="Cannot cancel a completed request.")
+
+    if instruction.linked_task_id:
+        task = db.query(Task).filter(Task.id == instruction.linked_task_id).first()
+        if task and task.status not in ("Done", "Completed"):
+            task.status = "Cancelled"
+            if task.assigned_staff_id:
+                staff = db.query(StaffMember).filter(StaffMember.id == task.assigned_staff_id).first()
+                if staff and staff.active_task_count > 0:
+                    staff.active_task_count -= 1
+
+    instruction.status = "cancelled"
+    if feedback:
+        feedback.state = "cancelled"
+        feedback.note = (feedback.note or "") + " | Cancelled by user"
+    else:
+        db.add(
+            TaskFeedback(
+                instruction_id=instruction_id,
+                queue_name=instruction.queue_name,
+                state="cancelled",
+                note="Cancelled by user",
+            )
+        )
+
+    db.commit()
+    return {"instruction_id": instruction_id, "status": "cancelled"}
+
+
 @router.post("/menu", response_model=MenuResponse)
 def upsert_menu(item: MenuItemUpsertRequest, db: Session = Depends(get_db)) -> MenuResponse:
     if item.updated_by_role.strip().lower() != "cafeteria":
@@ -1259,6 +1308,21 @@ def upsert_menu(item: MenuItemUpsertRequest, db: Session = Depends(get_db)) -> M
     )
     db.commit()
     return _build_menu_response(db, include_unavailable=True)
+
+
+@router.delete("/menu/{item_name}")
+def delete_menu_item(
+    item_name: str,
+    _: None = Depends(_require_roles("cafeteria", "manager", "receptionist")),
+    db: Session = Depends(get_db),
+) -> dict:
+    key = item_name.strip()
+    row = db.query(FoodAvailability).filter(FoodAvailability.item_name == key).first()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Menu item '{key}' not found.")
+    db.delete(row)
+    db.commit()
+    return {"deleted": key, "ok": True}
 
 
 @router.post("/cafeteria/complete-task", response_model=TaskFeedbackRecord)

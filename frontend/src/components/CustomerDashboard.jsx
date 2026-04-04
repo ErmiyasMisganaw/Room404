@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { apiPost, getCustomerRequests, getMenu } from '../services/api';
+import { apiPost, getCustomerRequests, getMenu, cancelCustomerRequest } from '../services/api';
 import {
   RiHomeLine, RiRestaurantLine, RiCustomerService2Line,
   RiFileListLine, RiBankCardLine, RiMenuLine, RiCloseLine,
@@ -926,14 +926,28 @@ function GuestServicesPage({ user, onRequestSent }) {
 
 // ─── Requests Page ────────────────────────────────────────────────────────────
 
-function RequestsPage({ requests }) {
+function RequestsPage({ requests, onCancel }) {
   const foodReqs = requests.filter((r) => r.type === 'food');
   const serviceReqs = requests.filter((r) => r.type !== 'food');
+  const [cancellingId, setCancellingId] = useState(null);
+
+  const handleCancel = async (req) => {
+    if (!req.id) return;
+    setCancellingId(req.id);
+    try {
+      await onCancel(req.id);
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   const RequestCard = ({ req, i }) => {
     const isFood = req.type === 'food';
+    const isCancelled = (req.status || '').toLowerCase() === 'cancelled';
+    const isCompleted = (req.status || '').toLowerCase() === 'completed';
+    const canCancel = !isCancelled && !isCompleted && req.id;
     return (
-      <div className="group flex items-start gap-4 rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-sm transition-all hover:shadow-md">
+      <div className={`group flex items-start gap-4 rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-sm transition-all hover:shadow-md ${isCancelled ? 'opacity-50' : ''}`}>
         <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ${isFood ? 'bg-amber-50' : 'bg-[#0d2414]/5'}`}>
           {isFood
             ? <RiRestaurantLine className="text-amber-500 text-sm" />
@@ -943,9 +957,10 @@ function RequestsPage({ requests }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider border ${
+              isCancelled ? 'bg-red-50 text-red-500 border-red-100' :
               isFood ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-[#9bc23c]/8 text-[#2d5c10] border-[#9bc23c]/15'
             }`}>
-              {isFood ? 'Food' : 'Service'}
+              {isCancelled ? 'Cancelled' : isFood ? 'Food' : 'Service'}
             </span>
             {req.time && (
               <span className="text-[10px] text-gray-400">
@@ -953,11 +968,29 @@ function RequestsPage({ requests }) {
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-700 leading-relaxed">{req.message}</p>
+          <p className={`text-sm leading-relaxed ${isCancelled ? 'text-gray-400 line-through' : 'text-gray-700'}`}>{req.message}</p>
           {req.items && req.items.length > 0 && (
             <p className="mt-1 text-xs text-gray-400">{req.items.map((it) => `${it.qty}× ${it.name}`).join(' · ')}</p>
           )}
-          <p className="mt-1 text-[10px] uppercase tracking-wider text-gray-300">Status: {(req.status || 'pending').replace('_', ' ')}</p>
+          <div className="mt-2 flex items-center gap-3">
+            <p className={`text-[10px] uppercase tracking-wider ${
+              isCancelled ? 'text-red-300' : isCompleted ? 'text-[#9bc23c]' : 'text-gray-300'
+            }`}>Status: {(req.status || 'pending').replace('_', ' ')}</p>
+            {canCancel && (
+              <button
+                type="button"
+                onClick={() => handleCancel(req)}
+                disabled={cancellingId === req.id}
+                className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-semibold text-red-500 uppercase tracking-wider transition hover:bg-red-100 hover:border-red-300 disabled:opacity-50"
+              >
+                {cancellingId === req.id
+                  ? <span className="h-3 w-3 animate-spin rounded-full border border-red-300 border-t-red-500" />
+                  : <RiDeleteBinLine className="text-xs" />
+                }
+                Cancel
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -1237,6 +1270,16 @@ export default function CustomerDashboard() {
     pushToast('Request sent!');
   };
 
+  const handleCancelRequest = async (instructionId) => {
+    try {
+      await cancelCustomerRequest(instructionId);
+      pushToast('Request cancelled.');
+      await refreshRequests();
+    } catch {
+      pushToast('Could not cancel request. It may already be completed.', 'error');
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await logout?.();
@@ -1256,7 +1299,7 @@ export default function CustomerDashboard() {
         {activePage === 'home'     && <HomePage user={user} />}
         {activePage === 'food'     && <FoodPage user={user} cart={cart} setCart={setCart} onOrderPlaced={handleOrderPlaced} />}
         {activePage === 'services' && <GuestServicesPage user={user} onRequestSent={handleRequestSent} />}
-        {activePage === 'requests' && <RequestsPage requests={requests} />}
+        {activePage === 'requests' && <RequestsPage requests={requests} onCancel={handleCancelRequest} />}
         {activePage === 'payments' && <PaymentsPage user={user} foodOrders={foodOrders} />}
       </div>
 

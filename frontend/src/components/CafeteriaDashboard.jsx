@@ -4,7 +4,9 @@ import Sidebar, { Icon } from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import {
   apiGet,
+  addMenuItem,
   completeCafeteriaTask,
+  deleteMenuItem,
   getCafeteriaAnalytics,
   getCafeteriaAvailability,
   getInbox,
@@ -235,6 +237,10 @@ function MenuSection({ userEmail }) {
   const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState([]);
   const [updating, setUpdating] = useState('');
+  const [deleting, setDeleting] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newItem, setNewItem] = useState({ item_name: '', available_quantity: 10, note: '' });
+  const [adding, setAdding] = useState(false);
 
   const pushToast = (msg, type = 'success') => {
     const id = Date.now() + Math.random();
@@ -275,6 +281,45 @@ function MenuSection({ userEmail }) {
     }
   };
 
+  const handleDelete = async (itemName) => {
+    if (!window.confirm(`Remove "${itemName}" from the menu?`)) return;
+    setDeleting(itemName);
+    try {
+      await deleteMenuItem(itemName);
+      setItems((prev) => prev.filter((i) => i.item_name !== itemName));
+      pushToast(`${itemName} removed from menu.`, 'success');
+    } catch {
+      pushToast('Could not remove menu item.', 'error');
+    } finally {
+      setDeleting('');
+    }
+  };
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    const name = newItem.item_name.trim();
+    if (!name) return;
+    setAdding(true);
+    try {
+      await addMenuItem({
+        item_name: name,
+        available_quantity: Number(newItem.available_quantity) || 0,
+        is_available: true,
+        note: newItem.note.trim(),
+        updated_by: userEmail || 'cafeteria',
+        updated_by_role: 'cafeteria',
+      });
+      setNewItem({ item_name: '', available_quantity: 10, note: '' });
+      setShowAddForm(false);
+      pushToast(`${name} added to menu.`, 'success');
+      await refresh();
+    } catch {
+      pushToast('Could not add menu item.', 'error');
+    } finally {
+      setAdding(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -282,12 +327,52 @@ function MenuSection({ userEmail }) {
         subtitle="Manage what's available in the cafeteria"
         icon={Icon.menu}
         actions={
-          <button onClick={refresh} className="rounded-lg border border-[#c4845a]/40 px-3 py-1.5 text-xs font-medium text-[#8a4a20] hover:bg-[#c4845a]/10 transition">
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowAddForm((v) => !v)}
+              className="rounded-lg bg-[#1d5c28] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#2d7a3a] transition">
+              {showAddForm ? 'Cancel' : '+ Add Item'}
+            </button>
+            <button onClick={refresh} className="rounded-lg border border-[#c4845a]/40 px-3 py-1.5 text-xs font-medium text-[#8a4a20] hover:bg-[#c4845a]/10 transition">
+              Refresh
+            </button>
+          </div>
         }
       />
       <div className="p-6">
+        {/* Add item form */}
+        {showAddForm && (
+          <form onSubmit={handleAdd} className="mb-6 animate-fade-in-up rounded-2xl border border-[#9bc23c]/30 bg-white p-5 shadow-sm">
+            <h3 className="text-sm font-bold text-[#0d2414] mb-4">Add New Menu Item</h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Item Name</label>
+                <input type="text" value={newItem.item_name}
+                  onChange={(e) => setNewItem((p) => ({ ...p, item_name: e.target.value }))}
+                  placeholder="e.g. Grilled Chicken"
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-[#9bc23c]/60 focus:ring-2 focus:ring-[#9bc23c]/10" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Quantity</label>
+                <input type="number" value={newItem.available_quantity} min={0}
+                  onChange={(e) => setNewItem((p) => ({ ...p, available_quantity: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-[#9bc23c]/60 focus:ring-2 focus:ring-[#9bc23c]/10" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Note (optional)</label>
+                <input type="text" value={newItem.note}
+                  onChange={(e) => setNewItem((p) => ({ ...p, note: e.target.value }))}
+                  placeholder="e.g. Lunch special"
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-[#9bc23c]/60 focus:ring-2 focus:ring-[#9bc23c]/10" />
+              </div>
+            </div>
+            <button type="submit" disabled={adding || !newItem.item_name.trim()}
+              className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-[#1d5c28] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#2d7a3a] disabled:opacity-50 disabled:cursor-not-allowed">
+              {adding && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
+              {adding ? 'Adding…' : 'Add to Menu'}
+            </button>
+          </form>
+        )}
+
         {loading ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {[1, 2, 3].map((n) => (
@@ -311,7 +396,7 @@ function MenuSection({ userEmail }) {
               </svg>
             </div>
             <p className="font-semibold text-gray-700">No menu items found</p>
-            <p className="mt-1 text-sm text-gray-500">Menu items will appear here from the backend.</p>
+            <p className="mt-1 text-sm text-gray-500">Click "+ Add Item" above to create your first menu item.</p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 stagger-children">
@@ -338,19 +423,33 @@ function MenuSection({ userEmail }) {
                   <p className="mb-4 text-xs text-gray-500 italic">{item.note}</p>
                 )}
 
-                <button
-                  type="button"
-                  disabled={updating === item.item_name}
-                  onClick={() => toggleItem(item)}
-                  className={`flex w-full items-center justify-center gap-2 rounded-xl py-2 text-sm font-semibold transition ${
-                    item.is_available
-                      ? 'border border-[#d4186e]/30 bg-[#d4186e]/5 text-[#d4186e] hover:bg-[#d4186e]/10'
-                      : 'border border-[#9bc23c]/40 bg-[#9bc23c]/10 text-[#3a6e10] hover:bg-[#9bc23c]/20'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {updating === item.item_name && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current/40 border-t-current" />}
-                  {item.is_available ? 'Mark Unavailable' : 'Mark Available'}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={updating === item.item_name}
+                    onClick={() => toggleItem(item)}
+                    className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2 text-sm font-semibold transition ${
+                      item.is_available
+                        ? 'border border-[#d4186e]/30 bg-[#d4186e]/5 text-[#d4186e] hover:bg-[#d4186e]/10'
+                        : 'border border-[#9bc23c]/40 bg-[#9bc23c]/10 text-[#3a6e10] hover:bg-[#9bc23c]/20'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    {updating === item.item_name && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current/40 border-t-current" />}
+                    {item.is_available ? 'Mark Unavailable' : 'Mark Available'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deleting === item.item_name}
+                    onClick={() => handleDelete(item.item_name)}
+                    className="flex items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-red-500 transition hover:bg-red-100 hover:border-red-300 disabled:opacity-50"
+                    title="Remove item"
+                  >
+                    {deleting === item.item_name
+                      ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-300 border-t-red-500" />
+                      : <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                    }
+                  </button>
+                </div>
               </div>
             ))}
           </div>

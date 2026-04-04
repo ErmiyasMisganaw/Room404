@@ -3,10 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar, { Icon } from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
-import { apiGet, apiPost, API_BASE_URL } from '../services/api';
+import { apiGet, apiPost, getRooms } from '../services/api';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-
-const API = `${API_BASE_URL}/api`;
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
@@ -67,6 +66,26 @@ const initialRooms = [
 function useRooms() {
   const [rooms, setRooms] = useState(initialRooms);
 
+  const fetchRooms = useCallback(async () => {
+    try {
+      const data = await getRooms();
+      if (Array.isArray(data) && data.length > 0) {
+        setRooms(data.map((r) => ({
+          roomNumber: r.room_number,
+          type: r.type,
+          status: r.status,
+          assignedCustomer: r.assigned_guest || '-',
+        })));
+      }
+    } catch {
+      // backend offline — keep initial rooms
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRooms();
+  }, [fetchRooms]);
+
   const assignRoom = ({ roomNumber, customerName }) => {
     setRooms((prev) =>
       prev.map((r) => r.roomNumber !== roomNumber ? r : { ...r, status: 'Occupied', assignedCustomer: customerName })
@@ -85,7 +104,7 @@ function useRooms() {
     );
   }, []);
 
-  return { rooms, assignRoom, updateRoomStatus };
+  return { rooms, assignRoom, updateRoomStatus, fetchRooms };
 }
 
 // ── Status configs ────────────────────────────────────────────────────────────
@@ -226,13 +245,51 @@ function AssignSection({ rooms, onAssign, pushToast }) {
     if (!available) { setError(`No ${form.roomType} room is currently available.`); return; }
     try {
       setLoading(true);
-      await new Promise((r) => setTimeout(r, 900));
-      const username = form.customerName.trim().toLowerCase().replace(/\s+/g, '.') + available.roomNumber;
-      const password = Math.random().toString(36).slice(-10);
-      onAssign({ roomNumber: available.roomNumber, customerName: form.customerName.trim() });
-      setResult({ roomNumber: available.roomNumber, username, password, customerName: form.customerName.trim(), checkIn: form.checkInDate, checkOut: form.checkOutDate, type: form.roomType });
+      const guestName = form.customerName.trim();
+      const email = guestName.toLowerCase().replace(/\s+/g, '.') + available.roomNumber + '@kuriftu.local';
+      const password = 'Kuriftu#' + new Date().getFullYear() + '!' + available.roomNumber;
+
+      // Create Supabase account if configured
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name: guestName,
+                role: 'customer',
+                room_number: available.roomNumber,
+                check_in_date: form.checkInDate,
+              },
+            },
+          });
+
+          if (signUpError && !signUpError.message?.includes('already registered')) {
+            throw signUpError;
+          }
+
+          // Upsert profile
+          const userId = signUpData?.user?.id;
+          if (userId) {
+            await supabase.from('profiles').upsert({
+              id: userId,
+              email,
+              full_name: guestName,
+              role: 'customer',
+              room_number: available.roomNumber,
+              check_in_date: form.checkInDate,
+            }, { onConflict: 'id' });
+          }
+        } catch (supaErr) {
+          console.warn('Supabase account creation skipped:', supaErr.message);
+        }
+      }
+
+      onAssign({ roomNumber: available.roomNumber, customerName: guestName });
+      setResult({ roomNumber: available.roomNumber, username: email, password, customerName: guestName, checkIn: form.checkInDate, checkOut: form.checkOutDate, type: form.roomType });
       setForm((prev) => ({ ...prev, customerName: '', checkInDate: '', checkOutDate: '' }));
-      pushToast(`Room ${available.roomNumber} assigned to ${form.customerName.trim()}.`, 'success');
+      pushToast(`Room ${available.roomNumber} assigned to ${guestName}.`, 'success');
     } catch {
       pushToast('Assignment failed. Please try again.', 'error');
     } finally {
