@@ -1,10 +1,14 @@
 import os
 
 
+<<<<<<< HEAD
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 if not GEMINI_API_KEY:
     import warnings
     warnings.warn("GEMINI_API_KEY is not set — AI chat routing will be unavailable.")
+=======
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+>>>>>>> db85256feb15a9dc29620699590dac5ae1dbe284
 GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-3.1-flash-lite-preview")
 
 # Database: set DATABASE_URL for Supabase/Postgres in deployment.
