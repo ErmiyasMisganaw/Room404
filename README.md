@@ -24,7 +24,6 @@ Use the complete step-by-step setup + QA credential guide here:
 
 ## Tech Stack
 
-<<<<<<< HEAD
 - `GEMINI_API_KEY` (required for AI features) — API key for Google generative models.
 - `GEMINI_MODEL_NAME` (optional) — model name to use (defaults to `gemini-3.1-flash-lite-preview`).
 - `DATABASE_URL` (optional) — if set to a Postgres/Supabase URL the app will use that; otherwise it uses SQLite at `./room404.db`.
@@ -90,7 +89,7 @@ npm install
 npm run dev
 ```
 
-<<<<<<< HEAD
+
 The frontend expects the backend to be available at the same host/port defaults used above. If you need to change CORS or ports, update `CORS_ALLOWED_ORIGINS` or your local Vite proxy settings.
 
 For frontend env overrides, use `frontend/.env.example` as a template and set:
@@ -171,7 +170,6 @@ Set frontend env vars on Vercel:
 - Provide a small admin UI to manage staff pools and manually reassign tasks.
 =======
 Open `http://localhost:5173`
->>>>>>> a81e80afe40204bd795733950261ef402a861e1a
 
 ---
 
